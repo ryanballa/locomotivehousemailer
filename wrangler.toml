@@ -11,6 +11,16 @@ AUTH_METHOD = "jwt"
 FROM_EMAIL = "noreply@example.com"
 FROM_NAME = "Locomotive House"
 
+[env.development]
+name = "locomotivehousemailer-dev"
+
+[env.development.vars]
+API_BASE_URL = "https://api-dev.locomotivehouse.com"
+POLL_INTERVAL_MS = "5000"
+AUTH_METHOD = "jwt"
+FROM_EMAIL = "noreply@dev.locomotivehouse.com"
+FROM_NAME = "Locomotive House"
+
 [env.production]
 name = "locomotivehousemailer-prod"
 routes = [
