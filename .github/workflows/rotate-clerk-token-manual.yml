@@ -57,6 +57,7 @@ jobs:
         run: |
           cat > generate-token.mjs << 'EOF'
           import { createClerkClient } from '@clerk/backend';
+          import { writeFileSync } from 'fs';
 
           async function main() {
             const clerkSecretKey = process.env.CLERK_SECRET_KEY;
@@ -96,7 +97,9 @@ jobs:
             }
 
             console.log('✓ Token generated successfully');
-            console.log('NEW_TOKEN=' + token.jwt);
+
+            // Write to GitHub output file
+            writeFileSync(process.env.GITHUB_OUTPUT, `NEW_TOKEN=${token.jwt}\n`, { flag: 'a' });
           }
 
           main().catch(e => {
@@ -106,7 +109,7 @@ jobs:
           EOF
 
           npm install @clerk/backend
-          node generate-token.mjs >> $GITHUB_OUTPUT
+          node generate-token.mjs
 
       - name: Update Cloudflare Secret
         if: success()

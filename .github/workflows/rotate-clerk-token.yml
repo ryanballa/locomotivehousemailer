@@ -45,6 +45,7 @@ jobs:
         run: |
           cat > refresh-token.mjs << 'EOF'
           import { createClerkClient } from '@clerk/backend';
+          import { writeFileSync } from 'fs';
 
           async function main() {
             const clerkSecretKey = process.env.CLERK_SECRET_KEY;
@@ -85,19 +86,16 @@ jobs:
               const expiresAt = new Date(Date.now() + 2592000 * 1000).toISOString();
 
               console.log('✓ Token generated successfully');
-              console.log(`expires_at=${expiresAt}`);
-              console.log(`new_token=${token.jwt}`);
+              console.log(`Expires: ${expiresAt}`);
 
               // Output for GitHub Actions
-              const fs = await import('fs').then(m => m.default);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `token=${token.jwt}\n`);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `expires_at=${expiresAt}\n`);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `success=true\n`);
+              writeFileSync(process.env.GITHUB_OUTPUT, `token=${token.jwt}\n`, { flag: 'a' });
+              writeFileSync(process.env.GITHUB_OUTPUT, `expires_at=${expiresAt}\n`, { flag: 'a' });
+              writeFileSync(process.env.GITHUB_OUTPUT, `success=true\n`, { flag: 'a' });
             } catch (error) {
               console.error('✗ Token generation failed:', error.message);
-              const fs = await import('fs').then(m => m.default);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `success=false\n`);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `error=${error.message}\n`);
+              writeFileSync(process.env.GITHUB_OUTPUT, `success=false\n`, { flag: 'a' });
+              writeFileSync(process.env.GITHUB_OUTPUT, `error=${error.message}\n`, { flag: 'a' });
               process.exit(1);
             }
           }
