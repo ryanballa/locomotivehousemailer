@@ -1,0 +1,52 @@
+name = "locomotivehousemailer"
+main = "src/index.ts"
+compatibility_date = "2024-11-22"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables for local development
+[vars]
+API_BASE_URL = "http://localhost:8787"
+POLL_INTERVAL_MS = "5000"
+AUTH_METHOD = "jwt"
+FROM_EMAIL = "noreply@example.com"
+FROM_NAME = "Locomotive House"
+
+[env.production]
+name = "locomotivehousemailer-prod"
+routes = [
+  { pattern = "mailer.example.com/*", zone_name = "example.com" }
+]
+
+[env.production.vars]
+API_BASE_URL = "https://api.locomotivehouse.com"
+POLL_INTERVAL_MS = "10000"
+AUTH_METHOD = "jwt"
+FROM_EMAIL = "noreply@yourcompany.com"
+FROM_NAME = "Locomotive House"
+
+# Secrets (configure via: wrangler secret put NAME --env production)
+# REQUIRED:
+#   RESEND_API_KEY - Resend API key for sending emails
+#
+# AUTHENTICATION (choose one):
+#   Option A (JWT):
+#     API_JWT_TOKEN - JWT token for authenticating with the queue API
+#     AUTH_METHOD = "jwt"
+#
+#   Option B (Clerk):
+#     CLERK_REFRESH_TOKEN - Clerk refresh token
+#     AUTH_METHOD = "clerk"
+#
+# ENDPOINT SECURITY:
+# All endpoints except /health require Bearer token authentication:
+#   - POST /process: requires Authorization header
+#   - GET /stats: requires Authorization header
+#   - POST /admin/refresh-clerk-token: requires Authorization header + CLERK_SECRET_KEY
+#   - GET /admin/refresh-schedule: requires Authorization header
+#
+# For Clerk auth (AUTH_METHOD = "clerk"):
+#   Pass Clerk JWT tokens in Authorization header: Authorization: Bearer <clerk-token>
+#   Requires CLERK_SECRET_KEY to verify tokens
+#
+# For JWT auth (AUTH_METHOD = "jwt"):
+#   Pass API_JWT_TOKEN in Authorization header: Authorization: Bearer <api-token>

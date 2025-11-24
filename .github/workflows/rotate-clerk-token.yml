@@ -1,0 +1,152 @@
+name: Rotate Clerk Token
+
+on:
+  schedule:
+    # Run every Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  rotate-token:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install @clerk/backend dotenv
+
+      - name: Generate new Clerk token
+        id: refresh
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          SERVICE_USER_ID: ${{ secrets.SERVICE_USER_ID }}
+        run: |
+          cat > refresh-token.js << 'EOF'
+          const { createClerkClient } = require('@clerk/backend');
+          require('dotenv').config();
+
+          async function main() {
+            const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+            const serviceUserId = process.env.SERVICE_USER_ID;
+
+            if (!clerkSecretKey || !serviceUserId) {
+              throw new Error('CLERK_SECRET_KEY or SERVICE_USER_ID not set');
+            }
+
+            const clerk = createClerkClient({ secretKey: clerkSecretKey });
+
+            try {
+              const session = await clerk.sessions.createTokenFromTemplate({
+                userId: serviceUserId,
+                template: 'integration',
+                expiresInSeconds: 2592000, // 30 days
+              });
+
+              if (!session || !session.jwt) {
+                throw new Error('Failed to generate token');
+              }
+
+              const expiresAt = new Date(Date.now() + 2592000 * 1000).toISOString();
+
+              console.log('✓ Token generated successfully');
+              console.log(`expires_at=${expiresAt}`);
+              console.log(`new_token=${session.jwt}`);
+
+              // Output for GitHub Actions
+              console.log(`::set-output name=token::${session.jwt}`);
+              console.log(`::set-output name=expires_at::${expiresAt}`);
+              console.log(`::set-output name=success::true`);
+            } catch (error) {
+              console.error('✗ Token generation failed:', error.message);
+              console.log('::set-output name=success::false');
+              console.log(`::set-output name=error::${error.message}`);
+              process.exit(1);
+            }
+          }
+
+          main();
+          EOF
+
+          node refresh-token.js
+
+      - name: Notify Slack on Success
+        if: success() && steps.refresh.outputs.success == 'true'
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "✓ Clerk token rotated successfully",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✓ Clerk Token Rotated\n*Expires:* ${{ steps.refresh.outputs.expires_at }}\n*Action:* Update `CLERK_REFRESH_TOKEN` secret in Cloudflare"
+                  }
+                }
+              ]
+            }
+
+      - name: Notify Slack on Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "✗ Clerk token rotation failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✗ Token Rotation Failed\n*Error:* Check GitHub Actions logs\n*Action:* Manual rotation may be needed"
+                  }
+                }
+              ]
+            }
+
+      - name: Comment on PR if exists
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const success = '${{ steps.refresh.outputs.success }}' === 'true';
+            const expiresAt = '${{ steps.refresh.outputs.expires_at }}';
+            const error = '${{ steps.refresh.outputs.error }}';
+
+            if (success) {
+              console.log('✓ Token rotated successfully');
+              console.log(`Expires: ${expiresAt}`);
+              console.log('Next steps:');
+              console.log('1. Get the token from the job output');
+              console.log('2. Update the CLERK_REFRESH_TOKEN secret in Cloudflare');
+              console.log('3. Redeploy the worker');
+            } else {
+              console.log('✗ Token rotation failed');
+              console.log(`Error: ${error}`);
+              console.log('Check the logs above for details');
+            }
+
+      - name: Create issue if failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Clerk Token Rotation Failed',
+              body: `Automated Clerk token rotation failed on ${new Date().toISOString()}.\n\nCheck the [GitHub Actions logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.\n\nManual rotation may be needed.`,
+              labels: ['automated', 'token-rotation', 'urgent']
+            });

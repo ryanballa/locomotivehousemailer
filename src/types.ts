@@ -1,0 +1,73 @@
+export interface EmailQueueItem {
+  id: number;
+  recipient_email: string;
+  subject: string;
+  body: string;
+  html_body?: string;
+  status: 'pending' | 'sent' | 'failed';
+  retry_count: number;
+  max_retries: number;
+  last_error?: string;
+  scheduled_at?: string;
+  sent_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SendEmailPayload {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+  from?: string;
+}
+
+export type AuthMethod = 'jwt' | 'clerk';
+
+export interface MailerConfig {
+  apiBaseUrl: string;
+  authMethod: AuthMethod;
+  apiJwtToken?: string;
+  clerkRefreshToken?: string;
+  resendApiKey: string;
+  fromEmail: string;
+  fromName: string;
+  pollIntervalMs: number;
+  maxBatchSize: number;
+}
+
+export interface QueueResponse<T> {
+  data: T;
+}
+
+export interface QueueListResponse {
+  data: EmailQueueItem[];
+}
+
+export interface PollResult {
+  processed: number;
+  failed: number;
+  errors: Array<{
+    emailId: number;
+    error: string;
+  }>;
+}
+
+export interface Env {
+  RESEND_API_KEY: string;
+  API_BASE_URL?: string;
+  FROM_EMAIL?: string;
+  FROM_NAME?: string;
+  POLL_INTERVAL_MS?: string;
+
+  // Auth method 1: JWT
+  API_JWT_TOKEN?: string;
+
+  // Auth method 2: Clerk
+  CLERK_REFRESH_TOKEN?: string;
+  AUTH_METHOD?: 'jwt' | 'clerk';
+
+  // Token refresh (Clerk)
+  CLERK_SECRET_KEY?: string;
+  SERVICE_USER_ID?: string;
+}

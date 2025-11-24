@@ -1,0 +1,91 @@
+name: Manual Clerk Token Rotation
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rotate token for'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - development
+          - production
+
+jobs:
+  manual-rotate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Wrangler
+        run: npm install -g wrangler
+
+      - name: Generate new token
+        id: generate
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          SERVICE_USER_ID: ${{ secrets.SERVICE_USER_ID }}
+        run: |
+          cat > generate-token.js << 'EOF'
+          const { createClerkClient } = require('@clerk/backend');
+
+          async function main() {
+            const clerk = createClerkClient({
+              secretKey: process.env.CLERK_SECRET_KEY
+            });
+
+            const session = await clerk.sessions.createTokenFromTemplate({
+              userId: process.env.SERVICE_USER_ID,
+              template: 'integration',
+              expiresInSeconds: 2592000
+            });
+
+            console.log('NEW_TOKEN=' + session.jwt);
+          }
+
+          main().catch(e => {
+            console.error('Error:', e.message);
+            process.exit(1);
+          });
+          EOF
+
+          npm install @clerk/backend
+          node generate-token.js >> $GITHUB_OUTPUT
+
+      - name: Update Cloudflare Secret
+        if: success()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEW_TOKEN: ${{ steps.generate.outputs.NEW_TOKEN }}
+        run: |
+          # Update via wrangler
+          echo "${{ steps.generate.outputs.NEW_TOKEN }}" | wrangler secret put CLERK_REFRESH_TOKEN --env ${{ github.event.inputs.environment }}
+
+      - name: Redeploy Worker
+        if: success()
+        run: |
+          npm install
+          npm run deploy
+
+      - name: Notify on Success
+        if: success()
+        run: |
+          echo "✓ Token rotated and worker redeployed"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Expires: $(date -u -d '+30 days' +'%Y-%m-%dT%H:%M:%SZ')"
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "✗ Token rotation failed"
+          echo "Check logs for details"
+          exit 1
