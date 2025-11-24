@@ -17,7 +17,7 @@ name = "locomotivehousemailer"
 [env.production.vars]
 API_BASE_URL = "https://api.locomotivehouse.com"
 POLL_INTERVAL_MS = "10000"
-AUTH_METHOD = "jwt"
+AUTH_METHOD = "clerk"
 FROM_EMAIL = "noreply@yourcompany.com"
 FROM_NAME = "Locomotive House"
 
