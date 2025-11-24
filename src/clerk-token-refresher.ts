@@ -46,13 +46,19 @@ export class ClerkTokenRefresher {
     try {
       console.log(`[Token Refresh] Generating new token for user ${this.serviceUserId}`);
 
-      const session = await this.clerkClient.sessions.createTokenFromTemplate({
+      // Step 1: Create a session for the service user
+      const sessionData = await this.clerkClient.sessions.createSession({
         userId: this.serviceUserId,
-        template: 'integration',
-        expiresInSeconds: this.tokenExpirationSeconds,
       });
 
-      if (!session || !session.jwt) {
+      // Step 2: Get a token from that session
+      const token = await this.clerkClient.sessions.getToken(
+        sessionData.id,
+        undefined,
+        this.tokenExpirationSeconds
+      );
+
+      if (!token || !token.jwt) {
         throw new Error('No token returned from Clerk API');
       }
 
@@ -64,7 +70,7 @@ export class ClerkTokenRefresher {
 
       return {
         success: true,
-        newToken: session.jwt,
+        newToken: token.jwt,
         expiresAt,
         timestamp: new Date().toISOString(),
       };

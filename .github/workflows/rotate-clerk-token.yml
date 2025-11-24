@@ -44,13 +44,19 @@ jobs:
             const clerk = createClerkClient({ secretKey: clerkSecretKey });
 
             try {
-              const session = await clerk.sessions.createTokenFromTemplate({
-                userId: serviceUserId,
-                template: 'integration',
-                expiresInSeconds: 2592000, // 30 days
+              // Step 1: Create a session for the service user
+              const sessionData = await clerk.sessions.createSession({
+                userId: serviceUserId
               });
 
-              if (!session || !session.jwt) {
+              // Step 2: Get a token from that session
+              const token = await clerk.sessions.getToken(
+                sessionData.id,
+                undefined,
+                2592000 // 30 days
+              );
+
+              if (!token || !token.jwt) {
                 throw new Error('Failed to generate token');
               }
 
@@ -58,11 +64,11 @@ jobs:
 
               console.log('✓ Token generated successfully');
               console.log(`expires_at=${expiresAt}`);
-              console.log(`new_token=${session.jwt}`);
+              console.log(`new_token=${token.jwt}`);
 
               // Output for GitHub Actions
               const fs = await import('fs').then(m => m.default);
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `token=${session.jwt}\n`);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `token=${token.jwt}\n`);
               fs.appendFileSync(process.env.GITHUB_OUTPUT, `expires_at=${expiresAt}\n`);
               fs.appendFileSync(process.env.GITHUB_OUTPUT, `success=true\n`);
             } catch (error) {

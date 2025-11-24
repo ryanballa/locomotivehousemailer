@@ -42,17 +42,23 @@ jobs:
               secretKey: process.env.CLERK_SECRET_KEY
             });
 
-            const session = await clerk.sessions.createTokenFromTemplate({
-              userId: process.env.SERVICE_USER_ID,
-              template: 'integration',
-              expiresInSeconds: 2592000
+            // Step 1: Create a session for the service user
+            const sessionData = await clerk.sessions.createSession({
+              userId: process.env.SERVICE_USER_ID
             });
 
-            if (!session || !session.jwt) {
+            // Step 2: Get a token from that session
+            const token = await clerk.sessions.getToken(
+              sessionData.id,
+              undefined,
+              2592000
+            );
+
+            if (!token || !token.jwt) {
               throw new Error('No token returned from Clerk API');
             }
 
-            console.log('NEW_TOKEN=' + session.jwt);
+            console.log('NEW_TOKEN=' + token.jwt);
           }
 
           main().catch(e => {
