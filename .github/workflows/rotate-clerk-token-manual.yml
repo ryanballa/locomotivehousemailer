@@ -31,6 +31,15 @@ jobs:
           fi
           echo "✓ CLERK_SECRET_KEY is set"
 
+          # Show first few characters to verify it's a production key
+          KEY="${{ secrets.CLERK_SECRET_KEY }}"
+          echo "Key type: ${KEY:0:8}..."
+          if [[ $KEY == sk_live_* ]]; then
+            echo "✓ Using PRODUCTION Clerk key"
+          elif [[ $KEY == sk_test_* ]]; then
+            echo "⚠ WARNING: Using TEST/DEVELOPMENT Clerk key (should use sk_live_)"
+          fi
+
           echo "Checking for SERVICE_USER_ID..."
           if [ -z "${{ secrets.SERVICE_USER_ID }}" ]; then
             echo "❌ Error: SERVICE_USER_ID secret is not set"
