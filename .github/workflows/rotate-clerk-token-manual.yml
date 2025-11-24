@@ -49,6 +49,21 @@ jobs:
 
           echo "✓ All required secrets are configured"
 
+      - name: Check key type
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+        run: |
+          # Extract first 8 characters to check key type
+          KEY_PREFIX=$(echo "$CLERK_SECRET_KEY" | cut -c1-8)
+          echo "Secret key prefix: $KEY_PREFIX"
+          if [[ "$KEY_PREFIX" == "sk_live_" ]]; then
+            echo "✓ Using PRODUCTION Clerk key (sk_live_)"
+          elif [[ "$KEY_PREFIX" == "sk_test_" ]]; then
+            echo "⚠ WARNING: Using TEST/DEVELOPMENT Clerk key (sk_test_)"
+            echo "This will cause 'Request only valid for development instances' error"
+            exit 1
+          fi
+
       - name: Generate new token
         id: generate
         env:
