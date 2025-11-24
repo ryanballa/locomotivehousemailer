@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install Wrangler
         run: npm install -g wrangler
@@ -34,8 +34,8 @@ jobs:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           SERVICE_USER_ID: ${{ secrets.SERVICE_USER_ID }}
         run: |
-          cat > generate-token.js << 'EOF'
-          const { createClerkClient } = require('@clerk/backend');
+          cat > generate-token.mjs << 'EOF'
+          import { createClerkClient } from '@clerk/backend';
 
           async function main() {
             const clerk = createClerkClient({
@@ -58,7 +58,7 @@ jobs:
           EOF
 
           npm install @clerk/backend
-          node generate-token.js >> $GITHUB_OUTPUT
+          node generate-token.mjs >> $GITHUB_OUTPUT
 
       - name: Update Cloudflare Secret
         if: success()

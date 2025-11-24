@@ -19,10 +19,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install dependencies
-        run: npm install @clerk/backend dotenv
+        run: npm install @clerk/backend
 
       - name: Generate new Clerk token
         id: refresh
@@ -30,9 +30,8 @@ jobs:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           SERVICE_USER_ID: ${{ secrets.SERVICE_USER_ID }}
         run: |
-          cat > refresh-token.js << 'EOF'
-          const { createClerkClient } = require('@clerk/backend');
-          require('dotenv').config();
+          cat > refresh-token.mjs << 'EOF'
+          import { createClerkClient } from '@clerk/backend';
 
           async function main() {
             const clerkSecretKey = process.env.CLERK_SECRET_KEY;
@@ -62,13 +61,15 @@ jobs:
               console.log(`new_token=${session.jwt}`);
 
               // Output for GitHub Actions
-              console.log(`::set-output name=token::${session.jwt}`);
-              console.log(`::set-output name=expires_at::${expiresAt}`);
-              console.log(`::set-output name=success::true`);
+              const fs = await import('fs').then(m => m.default);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `token=${session.jwt}\n`);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `expires_at=${expiresAt}\n`);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `success=true\n`);
             } catch (error) {
               console.error('✗ Token generation failed:', error.message);
-              console.log('::set-output name=success::false');
-              console.log(`::set-output name=error::${error.message}`);
+              const fs = await import('fs').then(m => m.default);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `success=false\n`);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `error=${error.message}\n`);
               process.exit(1);
             }
           }
@@ -76,7 +77,7 @@ jobs:
           main();
           EOF
 
-          node refresh-token.js
+          node refresh-token.mjs
 
       - name: Notify Slack on Success
         if: success() && steps.refresh.outputs.success == 'true'
