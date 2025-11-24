@@ -91,22 +91,50 @@ jobs:
               secretKey: clerkSecretKey
             });
 
+            // Try different methods to generate token
+            let token;
+
             try {
-              // Step 1: Create a session for the service user
-              console.log('Creating session for user:', serviceUserId);
-              const sessionData = await clerk.sessions.createSession({
-                userId: serviceUserId
-              });
+              // Method 1: Try creating a session first (works with test instances)
+              console.log('Method 1: Creating session for user:', serviceUserId);
+              try {
+                const sessionData = await clerk.sessions.createSession({
+                  userId: serviceUserId
+                });
 
-              console.log('Session created:', sessionData.id);
+                console.log('Session created:', sessionData.id);
 
-              // Step 2: Get a token from that session
-              console.log('Generating token...');
-              const token = await clerk.sessions.getToken(
-                sessionData.id,
-                undefined,
-                2592000
-              );
+                // Get token from session
+                console.log('Getting token from session...');
+                token = await clerk.sessions.getToken(
+                  sessionData.id,
+                  undefined,
+                  2592000
+                );
+              } catch (method1Error) {
+                console.log('Method 1 failed:', method1Error.message);
+                console.log('Trying alternative method...');
+
+                // Method 2: Try getting user and creating token directly
+                console.log('Method 2: Getting user and creating token directly');
+                const user = await clerk.users.getUser(serviceUserId);
+                console.log('User retrieved:', user.id);
+
+                // Try to get/create a session directly
+                const sessions = await clerk.users.getUserSessions(serviceUserId);
+                console.log('User sessions:', sessions.length);
+
+                if (sessions.length > 0) {
+                  token = await clerk.sessions.getToken(
+                    sessions[0].id,
+                    undefined,
+                    2592000
+                  );
+                  console.log('Token from existing session');
+                } else {
+                  throw new Error('No sessions found for user and could not create one');
+                }
+              }
 
               if (!token || !token.jwt) {
                 throw new Error('No token returned from Clerk API');
