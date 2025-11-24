@@ -92,35 +92,39 @@ jobs:
             });
 
             try {
-              // Step 1: Create a session for the service user
-              console.log('Creating session for user:', serviceUserId);
-              const sessionData = await clerk.sessions.createSession({
-                userId: serviceUserId
+              // Create a sign-in token for the service user
+              console.log('Creating sign-in token for user:', serviceUserId);
+
+              const response = await fetch('https://api.clerk.com/v1/sign_in_tokens', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${clerkSecretKey}`
+                },
+                body: JSON.stringify({
+                  user_id: serviceUserId,
+                  expires_in_seconds: 2592000
+                })
               });
 
-              console.log('Session created:', sessionData.id);
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`Clerk API error: ${JSON.stringify(errorData)}`);
+              }
 
-              // Step 2: Get a token from that session
-              console.log('Generating token...');
-              const token = await clerk.sessions.getToken(
-                sessionData.id,
-                undefined,
-                2592000
-              );
+              const signInTokenData = await response.json();
 
-              if (!token || !token.jwt) {
+              if (!signInTokenData.token) {
                 throw new Error('No token returned from Clerk API');
               }
 
-              console.log('✓ Token generated successfully');
+              console.log('✓ Sign-in token generated successfully');
+              console.log('Token ID:', signInTokenData.id);
 
               // Write to GitHub output file
-              writeFileSync(process.env.GITHUB_OUTPUT, `NEW_TOKEN=${token.jwt}\n`, { flag: 'a' });
+              writeFileSync(process.env.GITHUB_OUTPUT, `NEW_TOKEN=${signInTokenData.token}\n`, { flag: 'a' });
             } catch (apiError) {
               console.error('Clerk API Error:', apiError.message);
-              if (apiError.errors) {
-                console.error('Error details:', apiError.errors);
-              }
               throw apiError;
             }
           }
