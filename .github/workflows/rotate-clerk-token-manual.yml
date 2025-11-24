@@ -146,7 +146,7 @@ jobs:
           NEW_TOKEN: ${{ steps.generate.outputs.NEW_TOKEN }}
         run: |
           # Update via wrangler
-          echo "${{ steps.generate.outputs.NEW_TOKEN }}" | wrangler secret put CLERK_REFRESH_TOKEN --env ${{ github.event.inputs.environment }}
+          echo "${{ steps.generate.outputs.NEW_TOKEN }}" | wrangler secret put CLERK_REFRESH_TOKEN --env production
 
       - name: Redeploy Worker
         if: success()
