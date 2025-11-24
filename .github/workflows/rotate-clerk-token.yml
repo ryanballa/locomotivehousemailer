@@ -24,6 +24,18 @@ jobs:
       - name: Install dependencies
         run: npm install @clerk/backend
 
+      - name: Validate secrets
+        run: |
+          if [ -z "${{ secrets.CLERK_SECRET_KEY }}" ]; then
+            echo "Error: CLERK_SECRET_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SERVICE_USER_ID }}" ]; then
+            echo "Error: SERVICE_USER_ID secret is not set"
+            exit 1
+          fi
+          echo "✓ Required secrets are configured"
+
       - name: Generate new Clerk token
         id: refresh
         env:
@@ -37,19 +49,28 @@ jobs:
             const clerkSecretKey = process.env.CLERK_SECRET_KEY;
             const serviceUserId = process.env.SERVICE_USER_ID;
 
-            if (!clerkSecretKey || !serviceUserId) {
-              throw new Error('CLERK_SECRET_KEY or SERVICE_USER_ID not set');
+            if (!clerkSecretKey) {
+              throw new Error('CLERK_SECRET_KEY not set');
             }
 
+            if (!serviceUserId) {
+              throw new Error('SERVICE_USER_ID not set');
+            }
+
+            console.log('Creating Clerk client...');
             const clerk = createClerkClient({ secretKey: clerkSecretKey });
 
             try {
               // Step 1: Create a session for the service user
+              console.log('Creating session for user:', serviceUserId);
               const sessionData = await clerk.sessions.createSession({
                 userId: serviceUserId
               });
 
+              console.log('Session created:', sessionData.id);
+
               // Step 2: Get a token from that session
+              console.log('Generating token...');
               const token = await clerk.sessions.getToken(
                 sessionData.id,
                 undefined,

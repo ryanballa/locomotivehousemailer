@@ -28,6 +28,18 @@ jobs:
       - name: Install Wrangler
         run: npm install -g wrangler
 
+      - name: Validate secrets
+        run: |
+          if [ -z "${{ secrets.CLERK_SECRET_KEY }}" ]; then
+            echo "Error: CLERK_SECRET_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SERVICE_USER_ID }}" ]; then
+            echo "Error: SERVICE_USER_ID secret is not set"
+            exit 1
+          fi
+          echo "✓ Required secrets are configured"
+
       - name: Generate new token
         id: generate
         env:
@@ -38,16 +50,32 @@ jobs:
           import { createClerkClient } from '@clerk/backend';
 
           async function main() {
+            const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+            const serviceUserId = process.env.SERVICE_USER_ID;
+
+            if (!clerkSecretKey) {
+              throw new Error('Missing Clerk Secret Key - CLERK_SECRET_KEY environment variable not set');
+            }
+
+            if (!serviceUserId) {
+              throw new Error('Missing Service User ID - SERVICE_USER_ID environment variable not set');
+            }
+
+            console.log('Creating Clerk client...');
             const clerk = createClerkClient({
-              secretKey: process.env.CLERK_SECRET_KEY
+              secretKey: clerkSecretKey
             });
 
             // Step 1: Create a session for the service user
+            console.log('Creating session for user:', serviceUserId);
             const sessionData = await clerk.sessions.createSession({
-              userId: process.env.SERVICE_USER_ID
+              userId: serviceUserId
             });
 
+            console.log('Session created:', sessionData.id);
+
             // Step 2: Get a token from that session
+            console.log('Generating token...');
             const token = await clerk.sessions.getToken(
               sessionData.id,
               undefined,
@@ -58,6 +86,7 @@ jobs:
               throw new Error('No token returned from Clerk API');
             }
 
+            console.log('✓ Token generated successfully');
             console.log('NEW_TOKEN=' + token.jwt);
           }
 
