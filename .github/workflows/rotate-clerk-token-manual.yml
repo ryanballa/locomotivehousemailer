@@ -15,6 +15,7 @@ on:
 jobs:
   manual-rotate:
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
 
     steps:
       - name: Checkout code
@@ -30,15 +31,23 @@ jobs:
 
       - name: Validate secrets
         run: |
+          echo "Checking for CLERK_SECRET_KEY..."
           if [ -z "${{ secrets.CLERK_SECRET_KEY }}" ]; then
-            echo "Error: CLERK_SECRET_KEY secret is not set"
+            echo "❌ Error: CLERK_SECRET_KEY secret is not set"
+            echo "Available secrets context keys:"
+            echo "${{ toJSON(secrets) }}" | grep -o '"[^"]*":' | head -20
             exit 1
           fi
+          echo "✓ CLERK_SECRET_KEY is set"
+
+          echo "Checking for SERVICE_USER_ID..."
           if [ -z "${{ secrets.SERVICE_USER_ID }}" ]; then
-            echo "Error: SERVICE_USER_ID secret is not set"
+            echo "❌ Error: SERVICE_USER_ID secret is not set"
             exit 1
           fi
-          echo "✓ Required secrets are configured"
+          echo "✓ SERVICE_USER_ID is set"
+
+          echo "✓ All required secrets are configured"
 
       - name: Generate new token
         id: generate
