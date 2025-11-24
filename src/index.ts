@@ -20,24 +20,30 @@ const clerkAuth = async (c: any, next: any) => {
   const env = c.env as Env;
 
   try {
-    // If using Clerk auth method, verify the token with Clerk
-    if (env.AUTH_METHOD === 'clerk' && env.CLERK_SECRET_KEY) {
-      const client = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
-      try {
-        // Verify the JWT token signature with Clerk
-        const decoded = await client.verifyToken(token);
-        c.set('user', decoded);
-      } catch (error) {
-        return c.json({ error: 'Unauthorized: Invalid Clerk token' }, 401);
+    const authMethod = env.AUTH_METHOD || 'jwt';
+
+    if (authMethod === 'clerk') {
+      // For Clerk auth, verify the token with Clerk if secret key is available
+      if (env.CLERK_SECRET_KEY) {
+        const client = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
+        try {
+          // Verify the JWT token signature with Clerk
+          const decoded = await client.verifyToken(token);
+          c.set('user', decoded);
+        } catch (error) {
+          return c.json({ error: 'Unauthorized: Invalid Clerk token' }, 401);
+        }
+      } else {
+        // Clerk mode but no secret key - accept any bearer token (for development)
+        console.warn('Clerk auth mode but CLERK_SECRET_KEY not set - accepting any bearer token');
       }
-    }
-    // If using JWT auth method, basic validation
-    else if (env.AUTH_METHOD === 'jwt' || env.API_JWT_TOKEN) {
+    } else if (authMethod === 'jwt') {
+      // For JWT auth, validate against API_JWT_TOKEN
       if (token !== env.API_JWT_TOKEN) {
         return c.json({ error: 'Unauthorized: Invalid JWT token' }, 401);
       }
     } else {
-      return c.json({ error: 'Unauthorized: No authentication method configured' }, 401);
+      return c.json({ error: 'Unauthorized: Invalid AUTH_METHOD configuration' }, 401);
     }
 
     return next();
