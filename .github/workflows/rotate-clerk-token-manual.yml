@@ -152,7 +152,7 @@ jobs:
         if: success()
         run: |
           npm install
-          npm run deploy
+          npm run deploy -- --env production
 
       - name: Notify on Success
         if: success()
