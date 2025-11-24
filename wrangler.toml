@@ -13,9 +13,6 @@ FROM_NAME = "Locomotive House"
 
 [env.production]
 name = "locomotivehousemailer"
-routes = [
-  { pattern = "mailer.example.com/*", zone_name = "example.com" }
-]
 
 [env.production.vars]
 API_BASE_URL = "https://api.locomotivehouse.com"
