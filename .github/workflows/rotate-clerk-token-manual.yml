@@ -67,30 +67,38 @@ jobs:
               secretKey: clerkSecretKey
             });
 
-            // Step 1: Create a session for the service user
-            console.log('Creating session for user:', serviceUserId);
-            const sessionData = await clerk.sessions.createSession({
-              userId: serviceUserId
-            });
+            try {
+              // Step 1: Create a session for the service user
+              console.log('Creating session for user:', serviceUserId);
+              const sessionData = await clerk.sessions.createSession({
+                userId: serviceUserId
+              });
 
-            console.log('Session created:', sessionData.id);
+              console.log('Session created:', sessionData.id);
 
-            // Step 2: Get a token from that session
-            console.log('Generating token...');
-            const token = await clerk.sessions.getToken(
-              sessionData.id,
-              undefined,
-              2592000
-            );
+              // Step 2: Get a token from that session
+              console.log('Generating token...');
+              const token = await clerk.sessions.getToken(
+                sessionData.id,
+                undefined,
+                2592000
+              );
 
-            if (!token || !token.jwt) {
-              throw new Error('No token returned from Clerk API');
+              if (!token || !token.jwt) {
+                throw new Error('No token returned from Clerk API');
+              }
+
+              console.log('✓ Token generated successfully');
+
+              // Write to GitHub output file
+              writeFileSync(process.env.GITHUB_OUTPUT, `NEW_TOKEN=${token.jwt}\n`, { flag: 'a' });
+            } catch (apiError) {
+              console.error('Clerk API Error:', apiError.message);
+              if (apiError.errors) {
+                console.error('Error details:', apiError.errors);
+              }
+              throw apiError;
             }
-
-            console.log('✓ Token generated successfully');
-
-            // Write to GitHub output file
-            writeFileSync(process.env.GITHUB_OUTPUT, `NEW_TOKEN=${token.jwt}\n`, { flag: 'a' });
           }
 
           main().catch(e => {

@@ -94,6 +94,9 @@ jobs:
               writeFileSync(process.env.GITHUB_OUTPUT, `success=true\n`, { flag: 'a' });
             } catch (error) {
               console.error('✗ Token generation failed:', error.message);
+              if (error.errors) {
+                console.error('Error details:', error.errors);
+              }
               writeFileSync(process.env.GITHUB_OUTPUT, `success=false\n`, { flag: 'a' });
               writeFileSync(process.env.GITHUB_OUTPUT, `error=${error.message}\n`, { flag: 'a' });
               process.exit(1);
