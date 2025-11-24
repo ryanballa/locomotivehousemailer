@@ -2,20 +2,11 @@ name: Manual Clerk Token Rotation
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to rotate token for'
-        required: true
-        default: 'production'
-        type: choice
-        options:
-          - development
-          - production
 
 jobs:
   manual-rotate:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
+    environment: production
 
     steps:
       - name: Checkout code
