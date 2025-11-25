@@ -53,6 +53,40 @@ export interface PollResult {
   }>;
 }
 
+export interface Tower {
+  id: number;
+  name: string;
+  owner_id?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface User {
+  id: number;
+  email: string;
+  name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Report {
+  id: number;
+  tower_id: number;
+  year: number;
+  month: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TowerWithMissingReport extends Tower {
+  hasReport: boolean;
+}
+
+export interface TowerWithOwnerEmail extends Tower {
+  ownerEmail?: string;
+  ownerName?: string;
+}
+
 export interface Env {
   RESEND_API_KEY: string;
   API_BASE_URL?: string;

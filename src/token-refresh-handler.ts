@@ -264,6 +264,19 @@ function adminDashboardHandler(c: any) {
             <div class="loader" id="schedule-loader">Loading...</div>
             <div class="result" id="schedule-result"></div>
           </div>
+
+          <div class="card">
+            <h2><span class="icon">🏢</span> Missing Tower Reports</h2>
+            <p>Find towers that are lacking reports for a specific month and year.</p>
+            <div class="btn-group" style="flex-wrap: wrap; gap: 8px;">
+              <input type="number" id="club-id" placeholder="Club ID" min="1" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+              <input type="number" id="report-year" placeholder="Year" min="2000" max="2100" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+              <input type="number" id="report-month" placeholder="Month (1-12)" min="1" max="12" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+              <button class="btn btn-primary" onclick="getMissingReports()">Check Reports</button>
+            </div>
+            <div class="loader" id="reports-loader">Loading...</div>
+            <div class="result" id="reports-result"></div>
+          </div>
         </div>
       </div>
 
@@ -353,6 +366,57 @@ function adminDashboardHandler(c: any) {
           loader.classList.remove('active');
           result.classList.add('active', success ? 'result-success' : 'result-error');
           result.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+        async function getMissingReports() {
+          const clubId = document.getElementById('club-id').value;
+          const year = document.getElementById('report-year').value;
+          const month = document.getElementById('report-month').value;
+          const loader = document.getElementById('reports-loader');
+          const result = document.getElementById('reports-result');
+
+          // Validate inputs
+          if (!clubId || !year || !month) {
+            result.classList.add('active', 'result-error');
+            result.innerHTML = '<pre>Please fill in Club ID, Year, and Month</pre>';
+            return;
+          }
+
+          loader.classList.add('active');
+          result.classList.remove('active');
+
+          const endpoint = \`/admin/clubs/\${clubId}/missing-reports?year=\${year}&month=\${month}\`;
+          const { success, data } = await makeRequest(endpoint);
+
+          loader.classList.remove('active');
+          result.classList.add('active', success ? 'result-success' : 'result-error');
+
+          if (success && data.towersWithoutReports && data.towersWithoutReports.length > 0) {
+            const towers = data.towersWithoutReports;
+            let html = \`<div style="padding: 10px;">\`;
+            html += \`<p><strong>Found \${towers.length} tower(s) without reports for \${data.month}/\${data.year}</strong></p>\`;
+            html += \`<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">\`;
+            html += \`<tr style="background: rgba(0,0,0,0.05); border-bottom: 1px solid rgba(0,0,0,0.1);">\`;
+            html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Tower ID</th>\`;
+            html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Tower Name</th>\`;
+            html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Owner Email</th>\`;
+            html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Owner Name</th>\`;
+            html += \`</tr>\`;
+            towers.forEach(tower => {
+              html += \`<tr style="border-bottom: 1px solid rgba(0,0,0,0.1);">\`;
+              html += \`<td style="padding: 8px;">\${tower.id}</td>\`;
+              html += \`<td style="padding: 8px;">\${tower.name}</td>\`;
+              html += \`<td style="padding: 8px;"><code style="background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 3px;">\${tower.ownerEmail || 'N/A'}</code></td>\`;
+              html += \`<td style="padding: 8px;">\${tower.ownerName || 'N/A'}</td>\`;
+              html += \`</tr>\`;
+            });
+            html += \`</table></div>\`;
+            result.innerHTML = html;
+          } else if (success && data.count === 0) {
+            result.innerHTML = \`<pre>✓ All towers have submitted reports for \${data.month}/\${data.year}\n\nClub ID: \${data.clubId}\nTotal towers checked: 0 missing</pre>\`;
+          } else {
+            result.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+          }
         }
       </script>
     </body>

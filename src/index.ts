@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { createClerkClient } from '@clerk/backend';
 import { EmailService } from './email-service';
 import { QueueClient } from './queue-client';
+import { ClubsClient } from './clubs-client';
 import { EmailProcessor } from './processor';
 import { Env, MailerConfig, PollResult } from './types';
 import { setupTokenRefreshRoutes } from './token-refresh-handler';
@@ -143,6 +144,85 @@ app.get('/stats', clerkAuth, async (c) => {
     );
   } catch (error) {
     console.error('Error fetching stats:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return c.json(
+      {
+        success: false,
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      },
+      500
+    );
+  }
+});
+
+// Get towers missing reports for a specific club and month (requires authentication)
+app.get('/admin/clubs/:clubId/missing-reports', clerkAuth, async (c) => {
+  try {
+    const env = c.env;
+    const config = getConfig(env);
+    const clubId = parseInt(c.req.param('clubId'), 10);
+
+    // Get current date or from query params
+    const today = new Date();
+    const year = parseInt(c.req.query('year') || today.getFullYear().toString(), 10);
+    const month = parseInt(c.req.query('month') || (today.getMonth() + 1).toString(), 10);
+
+    // Validate inputs
+    if (isNaN(clubId) || clubId <= 0) {
+      return c.json(
+        {
+          success: false,
+          error: 'Invalid clubId parameter',
+          timestamp: new Date().toISOString(),
+        },
+        400
+      );
+    }
+
+    if (isNaN(year) || year < 2000 || year > 2100) {
+      return c.json(
+        {
+          success: false,
+          error: 'Invalid year parameter (must be between 2000 and 2100)',
+          timestamp: new Date().toISOString(),
+        },
+        400
+      );
+    }
+
+    if (isNaN(month) || month < 1 || month > 12) {
+      return c.json(
+        {
+          success: false,
+          error: 'Invalid month parameter (must be between 1 and 12)',
+          timestamp: new Date().toISOString(),
+        },
+        400
+      );
+    }
+
+    const clubsClient = new ClubsClient(config);
+    const towersLackingReports = await clubsClient.findTowersLackingReportsWithOwnerEmail(
+      clubId,
+      year,
+      month
+    );
+
+    return c.json(
+      {
+        success: true,
+        clubId,
+        year,
+        month,
+        towersWithoutReports: towersLackingReports,
+        count: towersLackingReports.length,
+        timestamp: new Date().toISOString(),
+      },
+      200
+    );
+  } catch (error) {
+    console.error('Error fetching towers missing reports:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     return c.json(
       {
