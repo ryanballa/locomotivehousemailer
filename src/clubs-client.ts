@@ -9,11 +9,11 @@ import {
 } from './types';
 
 interface ReportsResponse {
-  data: Report[];
+  result: Report[];
 }
 
 interface TowersResponse {
-  data: Tower[];
+  result: Tower[];
 }
 
 interface UserResponse {
@@ -80,7 +80,7 @@ export class ClubsClient {
       }
 
       const result = (await response.json()) as ReportsResponse;
-      return result.data || [];
+      return result.result || [];
     } catch (error) {
       console.error(`Error fetching reports for club ${clubId}:`, error);
       throw error;
@@ -106,7 +106,7 @@ export class ClubsClient {
       }
 
       const result = (await response.json()) as TowersResponse;
-      return result.data || [];
+      return result.result || [];
     } catch (error) {
       console.error(`Error fetching towers for club ${clubId}:`, error);
       throw error;
@@ -225,6 +225,44 @@ export class ClubsClient {
     } catch (error) {
       console.error(
         `Error getting towers with report status for club ${clubId}:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  async getReportsWithOwnerInfo(
+    clubId: number,
+    year: number,
+    month: number
+  ): Promise<Array<Report & { towerName?: string; ownerEmail?: string; ownerName?: string }>> {
+    try {
+      const [towers, reports] = await Promise.all([
+        this.getTowers(clubId),
+        this.getReports(clubId, year, month),
+      ]);
+
+      // Create a map of tower id to tower details for quick lookup
+      const towerMap = new Map(towers.map((t) => [t.id, t]));
+
+      // Enrich reports with tower name and owner info
+      const enrichedReports = await Promise.all(
+        reports.map(async (report) => {
+          const tower = towerMap.get(report.tower_id);
+          const owner = tower?.owner_id ? await this.getUser(tower.owner_id) : null;
+          return {
+            ...report,
+            towerName: tower?.name,
+            ownerEmail: owner?.email,
+            ownerName: owner?.name,
+          };
+        })
+      );
+
+      return enrichedReports;
+    } catch (error) {
+      console.error(
+        `Error getting reports with owner info for club ${clubId}:`,
         error
       );
       throw error;

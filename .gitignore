@@ -3,6 +3,7 @@ dist/
 .wrangler/
 .env
 .env.local
+.env.clerk.dev
 .env.production.local
 .DS_Store
 *.log

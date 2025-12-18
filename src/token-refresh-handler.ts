@@ -6,7 +6,7 @@
  */
 
 import { Hono } from 'hono';
-import { ClerkTokenRefresher } from './clerk-token-refresher';
+import { ClerkTokenRefresher } from '../scripts/clerk-token-refresher';
 import { Env } from './types';
 
 export function setupTokenRefreshRoutes(
@@ -214,6 +214,41 @@ function adminDashboardHandler(c: any) {
           white-space: pre-wrap;
           word-wrap: break-word;
         }
+        .nav-tabs {
+          display: flex;
+          gap: 0;
+          margin-bottom: 30px;
+          border-bottom: 2px solid #eee;
+          background: white;
+          border-radius: 12px 12px 0 0;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .nav-tab {
+          padding: 15px 25px;
+          cursor: pointer;
+          font-weight: 600;
+          color: #999;
+          border: none;
+          background: white;
+          transition: all 0.3s ease;
+          font-size: 14px;
+        }
+        .nav-tab:hover {
+          color: #667eea;
+          background: #f9f9f9;
+        }
+        .nav-tab.active {
+          color: #667eea;
+          border-bottom: 3px solid #667eea;
+          margin-bottom: -2px;
+        }
+        .tab-content {
+          display: none;
+        }
+        .tab-content.active {
+          display: block;
+        }
       </style>
     </head>
     <body>
@@ -223,6 +258,13 @@ function adminDashboardHandler(c: any) {
           <p>Admin Dashboard for Email Queue Management</p>
         </div>
 
+        <div class="nav-tabs">
+          <button class="nav-tab active" onclick="switchTab('dashboard')">Dashboard</button>
+          <button class="nav-tab" onclick="switchTab('reports')">Reports</button>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard-tab" class="tab-content active">
         <div class="cards">
           <div class="card">
             <h2><span class="icon">📧</span> Process Emails</h2>
@@ -278,6 +320,27 @@ function adminDashboardHandler(c: any) {
             <div class="result" id="reports-result"></div>
           </div>
         </div>
+        </div>
+        <!-- End Dashboard Tab -->
+
+        <!-- Reports Tab -->
+        <div id="reports-tab" class="tab-content">
+        <div class="cards">
+          <div class="card">
+            <h2><span class="icon">📋</span> View All Reports</h2>
+            <p>Pull all reports submitted for a specific club and month. Includes tower and owner information.</p>
+            <div class="btn-group" style="flex-wrap: wrap; gap: 8px;">
+              <input type="number" id="reports-club-id" placeholder="Club ID" min="1" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+              <input type="number" id="all-reports-year" placeholder="Year" min="2000" max="2100" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+              <input type="number" id="all-reports-month" placeholder="Month (1-12)" min="1" max="12" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+              <button class="btn btn-primary" onclick="getAllReports()">Get Reports</button>
+            </div>
+            <div class="loader" id="all-reports-loader">Loading...</div>
+            <div class="result" id="all-reports-result"></div>
+          </div>
+        </div>
+        </div>
+        <!-- End Reports Tab -->
       </div>
 
       <script>
@@ -368,6 +431,25 @@ function adminDashboardHandler(c: any) {
           result.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
         }
 
+        function switchTab(tabName) {
+          // Hide all tabs
+          const tabs = document.querySelectorAll('.tab-content');
+          tabs.forEach(tab => tab.classList.remove('active'));
+
+          // Remove active from all nav tabs
+          const navTabs = document.querySelectorAll('.nav-tab');
+          navTabs.forEach(tab => tab.classList.remove('active'));
+
+          // Show selected tab
+          const selectedTab = document.getElementById(tabName + '-tab');
+          if (selectedTab) {
+            selectedTab.classList.add('active');
+          }
+
+          // Mark nav tab as active
+          event.target.classList.add('active');
+        }
+
         async function getMissingReports() {
           const clubId = document.getElementById('club-id').value;
           const year = document.getElementById('report-year').value;
@@ -414,6 +496,60 @@ function adminDashboardHandler(c: any) {
             result.innerHTML = html;
           } else if (success && data.count === 0) {
             result.innerHTML = \`<pre>✓ All towers have submitted reports for \${data.month}/\${data.year}\n\nClub ID: \${data.clubId}\nTotal towers checked: 0 missing</pre>\`;
+          } else {
+            result.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+          }
+        }
+
+        async function getAllReports() {
+          const clubId = document.getElementById('reports-club-id').value;
+          const year = document.getElementById('all-reports-year').value;
+          const month = document.getElementById('all-reports-month').value;
+          const loader = document.getElementById('all-reports-loader');
+          const result = document.getElementById('all-reports-result');
+
+          // Validate inputs
+          if (!clubId || !year || !month) {
+            result.classList.add('active', 'result-error');
+            result.innerHTML = '<pre>Please fill in Club ID, Year, and Month</pre>';
+            return;
+          }
+
+          loader.classList.add('active');
+          result.classList.remove('active');
+
+          const endpoint = \`/admin/clubs/\${clubId}/reports?year=\${year}&month=\${month}\`;
+          const { success, data } = await makeRequest(endpoint);
+
+          loader.classList.remove('active');
+          result.classList.add('active', success ? 'result-success' : 'result-error');
+
+          if (success && data.reports && data.reports.length > 0) {
+            const reports = data.reports;
+            let html = \`<div style="padding: 10px;">\`;
+            html += \`<p><strong>Found \${reports.length} report(s) for \${data.month}/\${data.year}</strong></p>\`;
+            html += \`<table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px;">\`;
+            html += \`<tr style="background: rgba(0,0,0,0.05); border-bottom: 1px solid rgba(0,0,0,0.1);">\`;
+            html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Report ID</th>\`;
+            html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Tower Name</th>\`;
+            html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Owner Email</th>\`;
+            html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Owner Name</th>\`;
+            html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Submitted</th>\`;
+            html += \`</tr>\`;
+            reports.forEach(report => {
+              const submittedDate = new Date(report.created_at).toLocaleDateString();
+              html += \`<tr style="border-bottom: 1px solid rgba(0,0,0,0.1);">\`;
+              html += \`<td style="padding: 8px;">\${report.id}</td>\`;
+              html += \`<td style="padding: 8px;">\${report.towerName || 'Unknown'}</td>\`;
+              html += \`<td style="padding: 8px;"><code style="background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 3px;">\${report.ownerEmail || 'N/A'}</code></td>\`;
+              html += \`<td style="padding: 8px;">\${report.ownerName || 'N/A'}</td>\`;
+              html += \`<td style="padding: 8px;">\${submittedDate}</td>\`;
+              html += \`</tr>\`;
+            });
+            html += \`</table></div>\`;
+            result.innerHTML = html;
+          } else if (success && data.count === 0) {
+            result.innerHTML = \`<pre>No reports found for club \${clubId} in \${data.month}/\${data.year}</pre>\`;
           } else {
             result.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
           }

@@ -1,25 +1,25 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { EmailService } from './email-service';
-import { QueueClient } from './queue-client';
-import { EmailProcessor } from './processor';
-import { MailerConfig, EmailQueueItem } from './types';
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { EmailService } from "./email-service";
+import { QueueClient } from "./queue-client";
+import { EmailProcessor } from "./processor";
+import { MailerConfig, EmailQueueItem } from "./types";
 
-describe('Email Mailer', () => {
-  describe('EmailService', () => {
-    it('should initialize with correct from address', () => {
-      const service = new EmailService('test-key', 'test@example.com', 'Test');
-      expect(service.getFromEmail()).toBe('test@example.com');
+describe("Email Mailer", () => {
+  describe("EmailService", () => {
+    it("should initialize with correct from address", () => {
+      const service = new EmailService("test-key", "test@example.com", "Test");
+      expect(service.getFromEmail()).toBe("test@example.com");
     });
   });
 
-  describe('QueueClient', () => {
-    it('should initialize with config', () => {
+  describe("QueueClient", () => {
+    it("should initialize with config", () => {
       const config: MailerConfig = {
-        apiBaseUrl: 'http://localhost:8787',
-        apiJwtToken: 'test-token',
-        resendApiKey: 'test-key',
-        fromEmail: 'test@example.com',
-        fromName: 'Test',
+        apiBaseUrl: "http://localhost:8080",
+        apiJwtToken: "test-token",
+        resendApiKey: "test-key",
+        fromEmail: "test@example.com",
+        fromName: "Test",
         pollIntervalMs: 5000,
         maxBatchSize: 10,
       };
@@ -29,14 +29,14 @@ describe('Email Mailer', () => {
     });
   });
 
-  describe('EmailProcessor', () => {
-    it('should handle empty email list', async () => {
+  describe("EmailProcessor", () => {
+    it("should handle empty email list", async () => {
       const config: MailerConfig = {
-        apiBaseUrl: 'http://localhost:8787',
-        apiJwtToken: 'test-token',
-        resendApiKey: 'test-key',
-        fromEmail: 'test@example.com',
-        fromName: 'Test',
+        apiBaseUrl: "http://localhost:8080",
+        apiJwtToken: "test-token",
+        resendApiKey: "test-key",
+        fromEmail: "test@example.com",
+        fromName: "Test",
         pollIntervalMs: 5000,
         maxBatchSize: 10,
       };
@@ -49,7 +49,7 @@ describe('Email Mailer', () => {
       const queueClient = new QueueClient(config);
 
       // Mock getPendingEmails to return empty array
-      vi.spyOn(queueClient, 'getPendingEmails').mockResolvedValue([]);
+      vi.spyOn(queueClient, "getPendingEmails").mockResolvedValue([]);
 
       const processor = new EmailProcessor(emailService, queueClient);
       const result = await processor.processPendingEmails();
