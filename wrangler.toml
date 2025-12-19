@@ -20,6 +20,7 @@ API_BASE_URL = "https://api.locomotivehouse.com"
 CLIENT_BASE_URL = "https://locomotivehouse.com"
 POLL_INTERVAL_MS = "10000"
 AUTH_METHOD = "clerk"
+CLERK_PUBLISHABLE_KEY = "pk_live_your-production-publishable-key"
 FROM_EMAIL = "noreply@yourcompany.com"
 FROM_NAME = "Locomotive House"
 
@@ -33,19 +34,21 @@ FROM_NAME = "Locomotive House"
 #     AUTH_METHOD = "jwt"
 #
 #   Option B (Clerk):
-#     CLERK_REFRESH_TOKEN - Clerk refresh token
+#     CLERK_REFRESH_TOKEN - Clerk refresh token for API authentication
+#     CLERK_SECRET_KEY - Clerk secret key for token verification
+#     CLERK_PUBLISHABLE_KEY - Clerk publishable key for admin dashboard (set as var, not secret)
 #     AUTH_METHOD = "clerk"
 #
 # ENDPOINT SECURITY:
-# All endpoints except /health require Bearer token authentication:
+# All endpoints except /health and /admin (login page) require Bearer token authentication:
 #   - POST /process: requires Authorization header
 #   - GET /stats: requires Authorization header
 #   - POST /admin/refresh-clerk-token: requires Authorization header + CLERK_SECRET_KEY
 #   - GET /admin/refresh-schedule: requires Authorization header
 #
 # For Clerk auth (AUTH_METHOD = "clerk"):
-#   Pass Clerk JWT tokens in Authorization header: Authorization: Bearer <clerk-token>
-#   Requires CLERK_SECRET_KEY to verify tokens
+#   Admin dashboard uses Clerk sign-in UI with CLERK_PUBLISHABLE_KEY
+#   API endpoints verify Clerk JWT tokens using CLERK_SECRET_KEY
 #
 # For JWT auth (AUTH_METHOD = "jwt"):
 #   Pass API_JWT_TOKEN in Authorization header: Authorization: Bearer <api-token>

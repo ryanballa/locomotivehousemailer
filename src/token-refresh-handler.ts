@@ -5,9 +5,9 @@
  * and scheduled token refresh capability
  */
 
-import { Hono } from 'hono';
-import { ClerkTokenRefresher } from '../scripts/clerk-token-refresher';
-import { Env } from './types';
+import { Hono } from "hono";
+import { ClerkTokenRefresher } from "../scripts/clerk-token-refresher";
+import { Env } from "./types";
 
 export function setupTokenRefreshRoutes(
   app: Hono<{ Bindings: Env }>,
@@ -19,7 +19,7 @@ export function setupTokenRefreshRoutes(
    * Admin dashboard UI for managing tokens and queue
    * This route is public - it prompts for token on the client side
    */
-  app.get('/admin', adminDashboardHandler);
+  app.get("/admin", adminDashboardHandler);
 
   /**
    * POST /admin/refresh-clerk-token
@@ -39,8 +39,12 @@ export function setupTokenRefreshRoutes(
    * }
    */
   const refreshTokenRoute = authMiddleware
-    ? app.post('/admin/refresh-clerk-token', authMiddleware, refreshTokenHandler)
-    : app.post('/admin/refresh-clerk-token', refreshTokenHandler);
+    ? app.post(
+        "/admin/refresh-clerk-token",
+        authMiddleware,
+        refreshTokenHandler
+      )
+    : app.post("/admin/refresh-clerk-token", refreshTokenHandler);
 
   /**
    * GET /admin/refresh-schedule
@@ -57,11 +61,15 @@ export function setupTokenRefreshRoutes(
    * }
    */
   const refreshScheduleRoute = authMiddleware
-    ? app.get('/admin/refresh-schedule', authMiddleware, refreshScheduleHandler)
-    : app.get('/admin/refresh-schedule', refreshScheduleHandler);
+    ? app.get("/admin/refresh-schedule", authMiddleware, refreshScheduleHandler)
+    : app.get("/admin/refresh-schedule", refreshScheduleHandler);
 }
 
 function adminDashboardHandler(c: any) {
+  const env = c.env as Env;
+  const clerkPublishableKey = env.CLERK_PUBLISHABLE_KEY || "";
+  const authMethod = env.AUTH_METHOD || "jwt";
+
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -249,10 +257,74 @@ function adminDashboardHandler(c: any) {
         .tab-content.active {
           display: block;
         }
+        .auth-container {
+          max-width: 400px;
+          margin: 100px auto;
+          background: white;
+          padding: 40px;
+          border-radius: 12px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+          text-align: center;
+        }
+        .auth-container h2 {
+          margin-bottom: 20px;
+          color: #333;
+        }
+        .auth-container p {
+          color: #666;
+          margin-bottom: 20px;
+        }
+        .auth-container input {
+          width: 100%;
+          padding: 12px;
+          margin-bottom: 15px;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          font-size: 14px;
+        }
+        .user-info {
+          background: white;
+          padding: 15px 30px;
+          border-radius: 8px;
+          margin-bottom: 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .user-info-text {
+          color: #333;
+          font-size: 14px;
+        }
+        .user-info-text strong {
+          color: #667eea;
+        }
+        #app-container {
+          display: none;
+        }
+        #app-container.loaded {
+          display: block;
+        }
       </style>
     </head>
     <body>
+      <div id="auth-screen" class="auth-container">
+        <h2>🚂 Admin Login</h2>
+        <p>Please sign in to access the admin dashboard</p>
+        <div id="clerk-sign-in"></div>
+        <div id="token-auth" style="display: none;">
+          <input type="password" id="token-input" placeholder="Enter API token">
+          <button class="btn btn-primary" onclick="loginWithToken()">Sign In</button>
+        </div>
+      </div>
+      <div id="app-container">
       <div class="container">
+        <div class="user-info">
+          <div class="user-info-text">
+            Signed in as <strong id="user-email">Loading...</strong>
+          </div>
+          <button class="btn btn-secondary" onclick="signOut()">Sign Out</button>
+        </div>
         <div class="header">
           <h1>🚂 Locomotive House Mailer</h1>
           <p>Admin Dashboard for Email Queue Management</p>
@@ -345,15 +417,104 @@ function adminDashboardHandler(c: any) {
         </div>
         <!-- End Reports Tab -->
       </div>
+      </div>
 
       <script>
         const apiUrl = window.location.origin;
-        const token = prompt('Enter your API token:');
+        const authMethod = '${authMethod}';
+        const clerkPublishableKey = '${clerkPublishableKey}';
+        let token = null;
+        let clerk = null;
 
-        if (!token) {
-          alert('API token is required to access this dashboard');
-          window.location.href = '/';
+        async function initAuth() {
+          if (authMethod === 'clerk' && clerkPublishableKey) {
+            try {
+              // Import Clerk from ESM CDN (recommended by Clerk docs)
+              const { Clerk } = await import('https://esm.sh/@clerk/clerk-js@5');
+
+              console.log('Clerk SDK loaded successfully');
+
+              // Initialize Clerk instance
+              clerk = new Clerk(clerkPublishableKey);
+              await clerk.load();
+
+              console.log('Clerk initialized, user:', clerk.user ? 'signed in' : 'not signed in');
+
+              if (clerk.user) {
+                // User is already signed in
+                await onSignIn();
+              } else {
+                // Mount sign-in component
+                document.getElementById('clerk-sign-in').style.display = 'block';
+                const signInDiv = document.getElementById('clerk-sign-in');
+
+                clerk.mountSignIn(signInDiv, {
+                  afterSignInUrl: window.location.href,
+                  afterSignUpUrl: window.location.href
+                });
+
+                // Listen for authentication changes
+                clerk.addListener(({ user }) => {
+                  if (user) {
+                    onSignIn();
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('Error initializing Clerk:', error);
+              alert('Failed to initialize authentication: ' + error.message);
+              // Fallback to token auth
+              document.getElementById('clerk-sign-in').style.display = 'none';
+              document.getElementById('token-auth').style.display = 'block';
+            }
+          } else {
+            // Fallback to token auth
+            document.getElementById('clerk-sign-in').style.display = 'none';
+            document.getElementById('token-auth').style.display = 'block';
+          }
         }
+
+        async function onSignIn() {
+          try {
+            // Get session token from Clerk
+            token = await clerk.session.getToken();
+
+            // Update UI
+            const email = clerk.user.primaryEmailAddress?.emailAddress || 'Unknown';
+            document.getElementById('user-email').textContent = email;
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app-container').classList.add('loaded');
+          } catch (error) {
+            console.error('Error getting session token:', error);
+            alert('Failed to get authentication token');
+          }
+        }
+
+        async function signOut() {
+          if (clerk) {
+            await clerk.signOut();
+            window.location.reload();
+          } else {
+            sessionStorage.removeItem('adminToken');
+            window.location.reload();
+          }
+        }
+
+        function loginWithToken() {
+          const input = document.getElementById('token-input');
+          token = input.value;
+          if (token) {
+            sessionStorage.setItem('adminToken', token);
+            document.getElementById('user-email').textContent = 'API Token User';
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app-container').classList.add('loaded');
+          } else {
+            alert('Please enter a token');
+          }
+        }
+
+        // Initialize authentication on page load
+        initAuth();
 
         async function makeRequest(endpoint, method = 'GET', data = null) {
           const options = {
@@ -651,9 +812,9 @@ async function refreshTokenHandler(c: any) {
       return c.json(
         {
           success: false,
-          error: 'CLERK_SECRET_KEY not configured',
+          error: "CLERK_SECRET_KEY not configured",
           instructions:
-            'Set CLERK_SECRET_KEY environment variable in Cloudflare secrets',
+            "Set CLERK_SECRET_KEY environment variable in Cloudflare secrets",
         },
         400
       );
@@ -663,9 +824,9 @@ async function refreshTokenHandler(c: any) {
       return c.json(
         {
           success: false,
-          error: 'SERVICE_USER_ID not configured',
+          error: "SERVICE_USER_ID not configured",
           instructions:
-            'Set SERVICE_USER_ID environment variable (Clerk user ID of service account)',
+            "Set SERVICE_USER_ID environment variable (Clerk user ID of service account)",
         },
         400
       );
@@ -682,7 +843,8 @@ async function refreshTokenHandler(c: any) {
       return c.json(
         {
           ...result,
-          instructions: 'Check CLERK_SECRET_KEY and SERVICE_USER_ID configuration',
+          instructions:
+            "Check CLERK_SECRET_KEY and SERVICE_USER_ID configuration",
         },
         500
       );
@@ -694,10 +856,10 @@ async function refreshTokenHandler(c: any) {
         instructions: `Update your CLERK_REFRESH_TOKEN secret with: ${result.newToken}`,
         updateCommand: `wrangler secret put CLERK_REFRESH_TOKEN --env production`,
         updateSteps: [
-          '1. Copy the newToken value above',
-          '2. Run: wrangler secret put CLERK_REFRESH_TOKEN --env production',
-          '3. Paste the token when prompted',
-          '4. Redeploy: npm run deploy',
+          "1. Copy the newToken value above",
+          "2. Run: wrangler secret put CLERK_REFRESH_TOKEN --env production",
+          "3. Paste the token when prompted",
+          "4. Redeploy: npm run deploy",
         ],
       },
       200
@@ -716,12 +878,15 @@ async function refreshTokenHandler(c: any) {
 }
 
 function refreshScheduleHandler(c: any) {
-  const expirationDays = parseInt(c.req.query('tokenExpirationDays') || '30', 10);
+  const expirationDays = parseInt(
+    c.req.query("tokenExpirationDays") || "30",
+    10
+  );
 
   if (expirationDays < 1 || expirationDays > 365) {
     return c.json(
       {
-        error: 'tokenExpirationDays must be between 1 and 365',
+        error: "tokenExpirationDays must be between 1 and 365",
       },
       400
     );
@@ -734,15 +899,15 @@ function refreshScheduleHandler(c: any) {
     explanation,
     expirationDays,
     nextSteps: [
-      '1. Add to your wrangler.toml:',
+      "1. Add to your wrangler.toml:",
       `   [triggers]`,
       `   crons = ["${recommended}"]`,
-      '2. Add environment variables:',
-      '   CLERK_SECRET_KEY',
-      '   SERVICE_USER_ID',
-      '3. Redeploy: npm run deploy',
-      '4. Worker will automatically refresh token on schedule',
-      '5. Check logs: wrangler tail --env production',
+      "2. Add environment variables:",
+      "   CLERK_SECRET_KEY",
+      "   SERVICE_USER_ID",
+      "3. Redeploy: npm run deploy",
+      "4. Worker will automatically refresh token on schedule",
+      "5. Check logs: wrangler tail --env production",
     ],
   });
 }
@@ -754,12 +919,12 @@ function getRefreshSchedule(expirationDays: number): {
   const refreshDays = Math.max(Math.floor(expirationDays * 0.67), 1);
 
   const cronSchedules: Record<number, string> = {
-    1: '0 0 * * *',
-    3: '0 0 */3 * *',
-    7: '0 0 * * 0',
-    14: '0 0 1,15 * *',
-    20: '0 2 * * 0,3',
-    30: '0 2 * * 0',
+    1: "0 0 * * *",
+    3: "0 0 */3 * *",
+    7: "0 0 * * 0",
+    14: "0 0 1,15 * *",
+    20: "0 2 * * 0,3",
+    30: "0 2 * * 0",
   };
 
   const closestSchedule = Object.entries(cronSchedules).reduce((prev, curr) => {
