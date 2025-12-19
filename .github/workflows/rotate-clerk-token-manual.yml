@@ -40,12 +40,12 @@ jobs:
             echo "⚠ WARNING: Using TEST/DEVELOPMENT Clerk key (should use sk_live_)"
           fi
 
-          echo "Checking for SERVICE_USER_ID..."
-          if [ -z "${{ secrets.SERVICE_USER_ID }}" ]; then
-            echo "❌ Error: SERVICE_USER_ID secret is not set"
+          echo "Checking for CLERK_MACHINE_SECRET_KEY..."
+          if [ -z "${{ secrets.CLERK_MACHINE_SECRET_KEY }}" ]; then
+            echo "❌ Error: CLERK_MACHINE_SECRET_KEY secret is not set"
             exit 1
           fi
-          echo "✓ SERVICE_USER_ID is set"
+          echo "✓ CLERK_MACHINE_SECRET_KEY is set"
 
           echo "✓ All required secrets are configured"
 
@@ -68,7 +68,7 @@ jobs:
         id: generate
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          SERVICE_USER_ID: ${{ secrets.SERVICE_USER_ID }}
+          CLERK_MACHINE_SECRET_KEY: ${{ secrets.CLERK_MACHINE_SECRET_KEY }}
         run: |
           cat > generate-token.mjs << 'EOF'
           import { createClerkClient } from '@clerk/backend';
@@ -76,15 +76,15 @@ jobs:
 
           async function main() {
             const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-            const serviceUserId = process.env.SERVICE_USER_ID;
+            const machineSecretKey = process.env.CLERK_MACHINE_SECRET_KEY;
             const tokenExpirationSeconds = 2592000; // 30 days
 
             if (!clerkSecretKey) {
               throw new Error('Missing Clerk Secret Key - CLERK_SECRET_KEY environment variable not set');
             }
 
-            if (!serviceUserId) {
-              throw new Error('Missing Service User ID - SERVICE_USER_ID environment variable not set');
+            if (!machineSecretKey) {
+              throw new Error('Missing Machine Secret Key - CLERK_MACHINE_SECRET_KEY environment variable not set');
             }
 
             console.log('Creating Clerk client...');
@@ -93,40 +93,23 @@ jobs:
             });
 
             try {
-              // Step 1: Create a session for the service user
-              console.log('Creating session for user:', serviceUserId);
-              const sessionData = await clerk.sessions.createSession({
-                userId: serviceUserId,
+              console.log('Generating M2M token...');
+              const m2mToken = await clerk.m2m.createToken({
+                machineSecretKey,
+                secondsUntilExpiration: tokenExpirationSeconds,
               });
 
-              if (!sessionData || !sessionData.id) {
-                throw new Error('Failed to create session - no session ID returned');
+              if (!m2mToken || !m2mToken.token) {
+                throw new Error('No M2M token returned from Clerk API');
               }
 
-              console.log('✓ Session created successfully');
-              console.log('Session ID:', sessionData.id);
+              console.log('✓ M2M token generated successfully');
 
-              // Step 2: Get JWT token from the session
-              console.log('Generating JWT token from session...');
-              const tokenData = await clerk.sessions.getToken(
-                sessionData.id,
-                undefined,  // template (optional)
-                tokenExpirationSeconds
-              );
-
-              if (!tokenData || !tokenData.jwt) {
-                throw new Error('No JWT token returned from Clerk API');
-              }
-
-              console.log('✓ JWT token generated successfully');
-
-              const expiresAt = new Date(
-                Date.now() + tokenExpirationSeconds * 1000
-              ).toISOString();
+              const expiresAt = new Date(m2mToken.expiration).toISOString();
               console.log('Token expires at:', expiresAt);
 
               // Write to GitHub output file
-              writeFileSync(process.env.GITHUB_OUTPUT, `NEW_TOKEN=${tokenData.jwt}\n`, { flag: 'a' });
+              writeFileSync(process.env.GITHUB_OUTPUT, `NEW_TOKEN=${m2mToken.token}\n`, { flag: 'a' });
               writeFileSync(process.env.GITHUB_OUTPUT, `EXPIRES_AT=${expiresAt}\n`, { flag: 'a' });
             } catch (apiError) {
               console.error('Clerk API Error:', apiError.message);
@@ -171,7 +154,7 @@ jobs:
           echo "✓ Token rotated and worker redeployed"
           echo "Environment: production"
           echo "Expires: ${{ steps.generate.outputs.EXPIRES_AT }}"
-          echo "Token type: Session JWT (compatible with backend API)"
+          echo "Token type: M2M (Machine-to-Machine)"
 
       - name: Notify on Failure
         if: failure()

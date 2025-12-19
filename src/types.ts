@@ -109,5 +109,5 @@ export interface Env {
   // Token refresh (Clerk)
   CLERK_SECRET_KEY?: string;
   CLERK_PUBLISHABLE_KEY?: string;
-  SERVICE_USER_ID?: string;
+  CLERK_MACHINE_SECRET_KEY?: string;
 }

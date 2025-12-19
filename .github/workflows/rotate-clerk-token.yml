@@ -31,8 +31,8 @@ jobs:
             echo "Error: CLERK_SECRET_KEY secret is not set"
             exit 1
           fi
-          if [ -z "${{ secrets.SERVICE_USER_ID }}" ]; then
-            echo "Error: SERVICE_USER_ID secret is not set"
+          if [ -z "${{ secrets.CLERK_MACHINE_SECRET_KEY }}" ]; then
+            echo "Error: CLERK_MACHINE_SECRET_KEY secret is not set"
             exit 1
           fi
           echo "✓ Required secrets are configured"
@@ -41,7 +41,7 @@ jobs:
         id: refresh
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          SERVICE_USER_ID: ${{ secrets.SERVICE_USER_ID }}
+          CLERK_MACHINE_SECRET_KEY: ${{ secrets.CLERK_MACHINE_SECRET_KEY }}
         run: |
           cat > refresh-token.mjs << 'EOF'
           import { createClerkClient } from '@clerk/backend';
@@ -49,15 +49,15 @@ jobs:
 
           async function main() {
             const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-            const serviceUserId = process.env.SERVICE_USER_ID;
+            const machineSecretKey = process.env.CLERK_MACHINE_SECRET_KEY;
             const tokenExpirationSeconds = 2592000; // 30 days
 
             if (!clerkSecretKey) {
               throw new Error('CLERK_SECRET_KEY not set');
             }
 
-            if (!serviceUserId) {
-              throw new Error('SERVICE_USER_ID not set');
+            if (!machineSecretKey) {
+              throw new Error('CLERK_MACHINE_SECRET_KEY not set');
             }
 
             console.log('Creating Clerk client...');
@@ -66,40 +66,23 @@ jobs:
             });
 
             try {
-              // Step 1: Create a session for the service user
-              console.log('Creating session for user:', serviceUserId);
-              const sessionData = await clerk.sessions.createSession({
-                userId: serviceUserId,
+              console.log('Generating M2M token...');
+              const m2mToken = await clerk.m2m.createToken({
+                machineSecretKey,
+                secondsUntilExpiration: tokenExpirationSeconds,
               });
 
-              if (!sessionData || !sessionData.id) {
-                throw new Error('Failed to create session - no session ID returned');
+              if (!m2mToken || !m2mToken.token) {
+                throw new Error('No M2M token returned from Clerk API');
               }
 
-              console.log('✓ Session created successfully');
-              console.log('Session ID:', sessionData.id);
+              console.log('✓ M2M token generated successfully');
 
-              // Step 2: Get JWT token from the session
-              console.log('Generating JWT token from session...');
-              const tokenData = await clerk.sessions.getToken(
-                sessionData.id,
-                undefined,  // template (optional)
-                tokenExpirationSeconds
-              );
-
-              if (!tokenData || !tokenData.jwt) {
-                throw new Error('No JWT token returned from Clerk API');
-              }
-
-              console.log('✓ JWT token generated successfully');
-
-              const expiresAt = new Date(
-                Date.now() + tokenExpirationSeconds * 1000
-              ).toISOString();
+              const expiresAt = new Date(m2mToken.expiration).toISOString();
               console.log('Token expires at:', expiresAt);
 
               // Output for GitHub Actions
-              writeFileSync(process.env.GITHUB_OUTPUT, `token=${tokenData.jwt}\n`, { flag: 'a' });
+              writeFileSync(process.env.GITHUB_OUTPUT, `token=${m2mToken.token}\n`, { flag: 'a' });
               writeFileSync(process.env.GITHUB_OUTPUT, `expires_at=${expiresAt}\n`, { flag: 'a' });
               writeFileSync(process.env.GITHUB_OUTPUT, `success=true\n`, { flag: 'a' });
             } catch (error) {

@@ -565,20 +565,20 @@ async function handleEmailProcessing(env: Env): Promise<void> {
 async function handleTokenRefresh(env: Env): Promise<void> {
   try {
     const clerkSecretKey = env.CLERK_SECRET_KEY;
-    const serviceUserId = env.SERVICE_USER_ID;
+    const machineSecretKey = env.CLERK_MACHINE_SECRET_KEY;
 
-    if (!clerkSecretKey || !serviceUserId) {
+    if (!clerkSecretKey || !machineSecretKey) {
       console.error(
-        "Token refresh scheduled but CLERK_SECRET_KEY or SERVICE_USER_ID not configured"
+        "Token refresh scheduled but CLERK_SECRET_KEY or CLERK_MACHINE_SECRET_KEY not configured"
       );
       return;
     }
 
-    console.log("Running scheduled Clerk token refresh");
+    console.log("Running scheduled Clerk M2M token refresh");
 
     const refresher = new ClerkTokenRefresher({
       clerkSecretKey,
-      serviceUserId,
+      machineSecretKey,
     });
 
     const result = await refresher.refreshToken();

@@ -21,7 +21,7 @@ Both can:
 
 Get these from Clerk:
 - `CLERK_SECRET_KEY` - From Clerk Dashboard → API Keys → Secret Key
-- `SERVICE_USER_ID` - From Clerk Dashboard → Users → Service Account User ID
+- `CLERK_MACHINE_SECRET_KEY` - From Clerk Dashboard → Configure → Machines → View machine secret
 
 ### 2. Cloudflare Setup
 
@@ -48,8 +48,8 @@ Value: sk_live_xxxxxx
 ```
 
 ```
-Name: SERVICE_USER_ID
-Value: user_xxxxxx
+Name: CLERK_MACHINE_SECRET_KEY
+Value: ak_xxxxxx
 ```
 
 ```
@@ -178,7 +178,7 @@ You'll see the issue in your repository with instructions to fix it.
 
 **Solution**: Verify credentials are correct
 1. Check CLERK_SECRET_KEY starts with `sk_`
-2. Check SERVICE_USER_ID starts with `user_`
+2. Check CLERK_MACHINE_SECRET_KEY starts with `ak_`
 3. Verify they're not expired in Clerk dashboard
 
 ### "Cloudflare secret not updated"

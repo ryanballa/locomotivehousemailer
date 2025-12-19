@@ -2,7 +2,7 @@ import { createClerkClient } from '@clerk/backend';
 
 export interface TokenRefreshConfig {
   clerkSecretKey: string;
-  serviceUserId: string;
+  machineSecretKey: string;
   tokenExpirationSeconds?: number;
 }
 
@@ -17,60 +17,51 @@ export interface RefreshResult {
 /**
  * Clerk Token Refresher
  *
- * Automatically generates new Clerk refresh tokens on a schedule.
+ * Automatically generates new M2M (Machine-to-Machine) Clerk tokens on a schedule.
  * Can be called via scheduled Cloudflare cron or via HTTP endpoint.
  *
  * Usage:
  * 1. Set up CLERK_SECRET_KEY environment variable
- * 2. Set up SERVICE_USER_ID (from Clerk dashboard)
+ * 2. Set up CLERK_MACHINE_SECRET_KEY (from Clerk Dashboard -> Machines -> View machine secret)
  * 3. Call refreshToken() on a schedule
  * 4. Update CLERK_REFRESH_TOKEN secret with the new token
  */
 export class ClerkTokenRefresher {
   private clerkClient: ReturnType<typeof createClerkClient>;
-  private serviceUserId: string;
+  private machineSecretKey: string;
   private tokenExpirationSeconds: number;
 
   constructor(config: TokenRefreshConfig) {
     this.clerkClient = createClerkClient({
       secretKey: config.clerkSecretKey,
     });
-    this.serviceUserId = config.serviceUserId;
+    this.machineSecretKey = config.machineSecretKey;
     this.tokenExpirationSeconds = config.tokenExpirationSeconds || 2592000; // 30 days
   }
 
   /**
-   * Generate a new Clerk refresh token
+   * Generate a new M2M (Machine-to-Machine) token
    */
   async refreshToken(): Promise<RefreshResult> {
     try {
-      console.log(`[Token Refresh] Generating new token for user ${this.serviceUserId}`);
+      console.log('[Token Refresh] Generating new M2M token');
 
-      // Step 1: Create a session for the service user
-      const sessionData = await this.clerkClient.sessions.createSession({
-        userId: this.serviceUserId,
+      const m2mToken = await this.clerkClient.m2m.createToken({
+        machineSecretKey: this.machineSecretKey,
+        secondsUntilExpiration: this.tokenExpirationSeconds,
       });
 
-      // Step 2: Get a token from that session
-      const token = await this.clerkClient.sessions.getToken(
-        sessionData.id,
-        undefined,
-        this.tokenExpirationSeconds
-      );
-
-      if (!token || !token.jwt) {
-        throw new Error('No token returned from Clerk API');
+      if (!m2mToken || !m2mToken.token) {
+        throw new Error('No M2M token returned from Clerk API');
       }
 
-      const expiresAt = new Date(
-        Date.now() + this.tokenExpirationSeconds * 1000
-      ).toISOString();
+      const expiresAt = new Date(m2mToken.expiration).toISOString();
 
-      console.log(`[Token Refresh] ✓ New token generated, expires at ${expiresAt}`);
+      console.log(`[Token Refresh] ✓ New M2M token generated, expires at ${expiresAt}`);
 
       return {
         success: true,
-        newToken: token.jwt,
+        newToken: m2mToken.token,
         expiresAt,
         timestamp: new Date().toISOString(),
       };

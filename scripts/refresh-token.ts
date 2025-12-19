@@ -3,13 +3,13 @@
 /**
  * Local Token Refresh Script
  *
- * This script generates a fresh Clerk JWT token using your dev Clerk credentials
+ * This script generates a fresh Clerk M2M token using your dev Clerk credentials
  * and automatically updates the CLERK_REFRESH_TOKEN in .env.local.
  *
  * Usage:
  *   1. Ensure .env.local has:
  *      CLERK_SECRET_KEY=sk_test_xxx (dev key)
- *      SERVICE_USER_ID=user_xxx
+ *      CLERK_MACHINE_SECRET_KEY=ak_xxx (from Clerk Dashboard -> Machines)
  *
  *   2. Run: npm run refresh-token
  */
@@ -34,7 +34,7 @@ async function main() {
   console.log('');
 
   const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-  const serviceUserId = process.env.SERVICE_USER_ID;
+  const machineSecretKey = process.env.CLERK_MACHINE_SECRET_KEY;
 
   if (!clerkSecretKey) {
     console.error('❌ Error: CLERK_SECRET_KEY not found in .env.clerk.dev');
@@ -42,30 +42,29 @@ async function main() {
     console.error('Please create a .env.clerk.dev file in the project root with:');
     console.error('');
     console.error('  CLERK_SECRET_KEY=sk_test_xxx (your dev Clerk secret key)');
-    console.error('  SERVICE_USER_ID=user_xxx');
+    console.error('  CLERK_MACHINE_SECRET_KEY=ak_xxx (from Clerk Dashboard → Machines)');
     console.error('');
     console.error('Get your secret key from: https://dashboard.clerk.com/ → API Keys');
     process.exit(1);
   }
 
-  if (!serviceUserId) {
-    console.error('❌ Error: SERVICE_USER_ID not found in .env.clerk.dev');
+  if (!machineSecretKey) {
+    console.error('❌ Error: CLERK_MACHINE_SECRET_KEY not found in .env.clerk.dev');
     console.error('');
     console.error('Please add to your .env.clerk.dev file:');
     console.error('');
-    console.error('  SERVICE_USER_ID=user_xxx');
+    console.error('  CLERK_MACHINE_SECRET_KEY=ak_xxx');
     console.error('');
-    console.error('This is the Clerk user ID of your service account');
+    console.error('Get this from: Clerk Dashboard → Configure → Machines → View machine secret');
     process.exit(1);
   }
 
-  console.log('🔄 Generating new Clerk JWT token...');
-  console.log(`   Using service user: ${serviceUserId}`);
+  console.log('🔄 Generating new Clerk M2M token...');
   console.log('');
 
   const refresher = new ClerkTokenRefresher({
     clerkSecretKey,
-    serviceUserId,
+    machineSecretKey,
     tokenExpirationSeconds: 2592000, // 30 days
   });
 
@@ -92,9 +91,9 @@ async function main() {
       // Replace existing token
       envContent = envContent.replace(tokenRegex, `CLERK_REFRESH_TOKEN=${result.newToken}`);
     } else {
-      // Add token after SERVICE_USER_ID line
+      // Add token after CLERK_MACHINE_SECRET_KEY line
       envContent = envContent.replace(
-        /(SERVICE_USER_ID=.*)/,
+        /(CLERK_MACHINE_SECRET_KEY=.*)/,
         `$1\nCLERK_REFRESH_TOKEN=${result.newToken}`
       );
     }

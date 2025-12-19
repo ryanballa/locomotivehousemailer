@@ -24,16 +24,16 @@ export function setupTokenRefreshRoutes(
   /**
    * POST /admin/refresh-clerk-token
    *
-   * Manually trigger a Clerk token refresh
+   * Manually trigger a Clerk M2M token refresh
    *
    * Requires authentication and environment variables:
    * - CLERK_SECRET_KEY: Clerk secret for token generation
-   * - SERVICE_USER_ID: Clerk user ID of service account
+   * - CLERK_MACHINE_SECRET_KEY: Clerk machine secret for M2M authentication
    *
    * Response:
    * {
    *   "success": true,
-   *   "newToken": "eyJ...",
+   *   "newToken": "mt_...",
    *   "expiresAt": "2025-12-22T10:00:00Z",
    *   "instructions": "Update your CLERK_REFRESH_TOKEN secret with this token"
    * }
@@ -826,7 +826,7 @@ function adminDashboardHandler(c: any) {
 async function refreshTokenHandler(c: any) {
   try {
     const clerkSecretKey = c.env.CLERK_SECRET_KEY;
-    const serviceUserId = c.env.SERVICE_USER_ID;
+    const machineSecretKey = c.env.CLERK_MACHINE_SECRET_KEY;
 
     if (!clerkSecretKey) {
       return c.json(
@@ -840,13 +840,13 @@ async function refreshTokenHandler(c: any) {
       );
     }
 
-    if (!serviceUserId) {
+    if (!machineSecretKey) {
       return c.json(
         {
           success: false,
-          error: "SERVICE_USER_ID not configured",
+          error: "CLERK_MACHINE_SECRET_KEY not configured",
           instructions:
-            "Set SERVICE_USER_ID environment variable (Clerk user ID of service account)",
+            "Set CLERK_MACHINE_SECRET_KEY environment variable (from Clerk Dashboard -> Machines -> View machine secret)",
         },
         400
       );
@@ -854,7 +854,7 @@ async function refreshTokenHandler(c: any) {
 
     const refresher = new ClerkTokenRefresher({
       clerkSecretKey,
-      serviceUserId,
+      machineSecretKey,
     });
 
     const result = await refresher.refreshToken();
@@ -864,7 +864,7 @@ async function refreshTokenHandler(c: any) {
         {
           ...result,
           instructions:
-            "Check CLERK_SECRET_KEY and SERVICE_USER_ID configuration",
+            "Check CLERK_SECRET_KEY and CLERK_MACHINE_SECRET_KEY configuration",
         },
         500
       );
@@ -924,7 +924,7 @@ function refreshScheduleHandler(c: any) {
       `   crons = ["${recommended}"]`,
       "2. Add environment variables:",
       "   CLERK_SECRET_KEY",
-      "   SERVICE_USER_ID",
+      "   CLERK_MACHINE_SECRET_KEY",
       "3. Redeploy: npm run deploy",
       "4. Worker will automatically refresh token on schedule",
       "5. Check logs: wrangler tail --env production",
