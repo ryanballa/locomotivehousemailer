@@ -17,7 +17,7 @@ interface TowersResponse {
 }
 
 interface UserResponse {
-  data: User;
+  user: User;
 }
 
 interface UsersResponse {
@@ -29,10 +29,12 @@ export class ClubsClient {
   private authMethod: AuthMethod;
   private authToken?: string;
   private clerkRefreshToken?: string;
+  private apiKey?: string;
 
   constructor(config: MailerConfig) {
     this.apiBaseUrl = config.apiBaseUrl;
     this.authMethod = config.authMethod;
+    this.apiKey = config.apiKey;
 
     if (config.authMethod === 'clerk') {
       this.clerkRefreshToken = config.clerkRefreshToken;
@@ -65,12 +67,18 @@ export class ClubsClient {
       url.searchParams.set('year', year.toString());
       url.searchParams.set('month', month.toString());
 
+      const headers: Record<string, string> = {
+        Authorization: this.getAuthHeader(),
+        'Content-Type': 'application/json',
+      };
+
+      if (this.apiKey) {
+        headers['X-API-Key'] = this.apiKey;
+      }
+
       const response = await fetch(url.toString(), {
         method: 'GET',
-        headers: {
-          Authorization: this.getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -91,12 +99,18 @@ export class ClubsClient {
     try {
       const url = new URL(`/api/clubs/${clubId}/towers`, this.apiBaseUrl);
 
+      const headers: Record<string, string> = {
+        Authorization: this.getAuthHeader(),
+        'Content-Type': 'application/json',
+      };
+
+      if (this.apiKey) {
+        headers['X-API-Key'] = this.apiKey;
+      }
+
       const response = await fetch(url.toString(), {
         method: 'GET',
-        headers: {
-          Authorization: this.getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -117,12 +131,18 @@ export class ClubsClient {
     try {
       const url = new URL(`/api/users/${userId}`, this.apiBaseUrl);
 
+      const headers: Record<string, string> = {
+        Authorization: this.getAuthHeader(),
+        'Content-Type': 'application/json',
+      };
+
+      if (this.apiKey) {
+        headers['X-API-Key'] = this.apiKey;
+      }
+
       const response = await fetch(url.toString(), {
         method: 'GET',
-        headers: {
-          Authorization: this.getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -131,7 +151,7 @@ export class ClubsClient {
       }
 
       const result = (await response.json()) as UserResponse;
-      return result.data || null;
+      return result.user || null;
     } catch (error) {
       console.error(`Error fetching user ${userId}:`, error);
       return null;
@@ -184,10 +204,13 @@ export class ClubsClient {
       const towersWithOwnerEmail: TowerWithOwnerEmail[] = await Promise.all(
         towersLackingReports.map(async (tower) => {
           const owner = tower.owner_id ? await this.getUser(tower.owner_id) : null;
+          const ownerName = owner?.first_name && owner?.last_name
+            ? `${owner.first_name} ${owner.last_name}`.trim()
+            : owner?.first_name || owner?.last_name || undefined;
           return {
             ...tower,
             ownerEmail: owner?.email,
-            ownerName: owner?.name,
+            ownerName,
           };
         })
       );
@@ -250,11 +273,14 @@ export class ClubsClient {
         reports.map(async (report) => {
           const tower = towerMap.get(report.tower_id);
           const owner = tower?.owner_id ? await this.getUser(tower.owner_id) : null;
+          const ownerName = owner?.first_name && owner?.last_name
+            ? `${owner.first_name} ${owner.last_name}`.trim()
+            : owner?.first_name || owner?.last_name || undefined;
           return {
             ...report,
             towerName: tower?.name,
             ownerEmail: owner?.email,
-            ownerName: owner?.name,
+            ownerName,
           };
         })
       );

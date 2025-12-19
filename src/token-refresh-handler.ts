@@ -315,9 +315,12 @@ function adminDashboardHandler(c: any) {
               <input type="number" id="report-year" placeholder="Year" min="2000" max="2100" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
               <input type="number" id="report-month" placeholder="Month (1-12)" min="1" max="12" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
               <button class="btn btn-primary" onclick="getMissingReports()">Check Reports</button>
+              <button class="btn btn-secondary" id="send-reminders-btn" onclick="sendMissingReportReminders()" style="display: none;">📧 Send Reminder Emails</button>
             </div>
             <div class="loader" id="reports-loader">Loading...</div>
             <div class="result" id="reports-result"></div>
+            <div class="loader" id="send-reminders-loader">Sending emails...</div>
+            <div class="result" id="send-reminders-result"></div>
           </div>
         </div>
         </div>
@@ -456,6 +459,12 @@ function adminDashboardHandler(c: any) {
           const month = document.getElementById('report-month').value;
           const loader = document.getElementById('reports-loader');
           const result = document.getElementById('reports-result');
+          const sendBtn = document.getElementById('send-reminders-btn');
+          const sendResult = document.getElementById('send-reminders-result');
+
+          // Hide send button and clear previous send results
+          sendBtn.style.display = 'none';
+          sendResult.classList.remove('active');
 
           // Validate inputs
           if (!clubId || !year || !month) {
@@ -475,8 +484,13 @@ function adminDashboardHandler(c: any) {
 
           if (success && data.towersWithoutReports && data.towersWithoutReports.length > 0) {
             const towers = data.towersWithoutReports;
+            const towersWithEmail = towers.filter(t => t.ownerEmail);
+
             let html = \`<div style="padding: 10px;">\`;
             html += \`<p><strong>Found \${towers.length} tower(s) without reports for \${data.month}/\${data.year}</strong></p>\`;
+            if (towersWithEmail.length > 0) {
+              html += \`<p style="color: #667eea; font-weight: 600; margin-top: 5px;">\${towersWithEmail.length} tower(s) have owner emails and can receive reminders</p>\`;
+            }
             html += \`<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">\`;
             html += \`<tr style="background: rgba(0,0,0,0.05); border-bottom: 1px solid rgba(0,0,0,0.1);">\`;
             html += \`<th style="padding: 8px; text-align: left; font-weight: 600;">Tower ID</th>\`;
@@ -494,11 +508,77 @@ function adminDashboardHandler(c: any) {
             });
             html += \`</table></div>\`;
             result.innerHTML = html;
+
+            // Show send button if there are towers with emails
+            if (towersWithEmail.length > 0) {
+              sendBtn.style.display = 'inline-block';
+            }
           } else if (success && data.count === 0) {
             result.innerHTML = \`<pre>✓ All towers have submitted reports for \${data.month}/\${data.year}\n\nClub ID: \${data.clubId}\nTotal towers checked: 0 missing</pre>\`;
           } else {
             result.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
           }
+        }
+
+        async function sendMissingReportReminders() {
+          const clubId = document.getElementById('club-id').value;
+          const year = document.getElementById('report-year').value;
+          const month = document.getElementById('report-month').value;
+          const loader = document.getElementById('send-reminders-loader');
+          const result = document.getElementById('send-reminders-result');
+          const sendBtn = document.getElementById('send-reminders-btn');
+
+          // Validate inputs
+          if (!clubId || !year || !month) {
+            result.classList.add('active', 'result-error');
+            result.innerHTML = '<pre>Please fill in Club ID, Year, and Month</pre>';
+            return;
+          }
+
+          // Disable button while sending
+          sendBtn.disabled = true;
+
+          loader.classList.add('active');
+          result.classList.remove('active');
+
+          const endpoint = \`/admin/clubs/\${clubId}/missing-reports/send?year=\${year}&month=\${month}\`;
+          const { success, data } = await makeRequest(endpoint, 'POST');
+
+          loader.classList.remove('active');
+          result.classList.add('active', success ? 'result-success' : 'result-error');
+
+          if (success) {
+            let html = \`<div style="padding: 10px;">\`;
+            html += \`<p style="font-weight: 600; color: #155724;">✓ Email sending completed</p>\`;
+            html += \`<div style="margin-top: 10px; line-height: 1.8;">\`;
+            html += \`<p><strong>Queued:</strong> \${data.queued} email(s)</p>\`;
+            if (data.failed > 0) {
+              html += \`<p style="color: #721c24;"><strong>Failed:</strong> \${data.failed} email(s)</p>\`;
+            }
+            if (data.skipped > 0) {
+              html += \`<p><strong>Skipped:</strong> \${data.skipped} tower(s) without owner emails</p>\`;
+            }
+            html += \`</div>\`;
+
+            // Show errors if any
+            if (data.errors && data.errors.length > 0) {
+              html += \`<div style="margin-top: 15px; padding: 10px; background: #f8d7da; border-radius: 6px;">\`;
+              html += \`<p style="font-weight: 600; margin-bottom: 8px;">Errors:</p>\`;
+              data.errors.forEach(err => {
+                html += \`<p style="margin: 4px 0; font-size: 12px;"><strong>\${err.towerName}:</strong> \${err.error}</p>\`;
+              });
+              html += \`</div>\`;
+            }
+
+            html += \`<p style="margin-top: 15px; font-size: 12px; color: #666;">\${data.message}</p>\`;
+            html += \`</div>\`;
+            result.innerHTML = html;
+          } else {
+            result.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+          }
+
+          // Re-enable button
+          sendBtn.disabled = false;
         }
 
         async function getAllReports() {

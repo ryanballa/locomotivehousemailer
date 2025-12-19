@@ -26,9 +26,11 @@ export type AuthMethod = 'jwt' | 'clerk';
 
 export interface MailerConfig {
   apiBaseUrl: string;
+  clientBaseUrl: string;
   authMethod: AuthMethod;
   apiJwtToken?: string;
   clerkRefreshToken?: string;
+  apiKey?: string;
   resendApiKey: string;
   fromEmail: string;
   fromName: string;
@@ -63,10 +65,11 @@ export interface Tower {
 
 export interface User {
   id: number;
-  email: string;
-  name?: string;
-  created_at: string;
-  updated_at: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  token?: string;
+  permission?: number;
 }
 
 export interface Report {
@@ -90,6 +93,8 @@ export interface TowerWithOwnerEmail extends Tower {
 export interface Env {
   RESEND_API_KEY: string;
   API_BASE_URL?: string;
+  CLIENT_BASE_URL?: string;
+  API_KEY?: string;
   FROM_EMAIL?: string;
   FROM_NAME?: string;
   POLL_INTERVAL_MS?: string;

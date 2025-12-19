@@ -7,6 +7,11 @@ import { EmailProcessor } from "./processor";
 import { Env, MailerConfig, PollResult } from "./types";
 import { setupTokenRefreshRoutes } from "./token-refresh-handler";
 import { ClerkTokenRefresher } from "../scripts/clerk-token-refresher";
+import {
+  getMissingReportEmailSubject,
+  getMissingReportEmailText,
+  getMissingReportEmailHtml,
+} from "./templates/missing-report-email";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -82,9 +87,11 @@ function getConfig(env: Env): MailerConfig {
 
   return {
     apiBaseUrl: env.API_BASE_URL || "http://localhost:8080",
+    clientBaseUrl: env.CLIENT_BASE_URL || "http://localhost:3000",
     authMethod,
     apiJwtToken: env.API_JWT_TOKEN,
     clerkRefreshToken: env.CLERK_REFRESH_TOKEN,
+    apiKey: env.API_KEY,
     resendApiKey: env.RESEND_API_KEY,
     fromEmail: env.FROM_EMAIL || "noreply@example.com",
     fromName: env.FROM_NAME || "Locomotive House",
@@ -246,6 +253,148 @@ app.get("/admin/clubs/:clubId/missing-reports", clerkAuth, async (c) => {
     );
   } catch (error) {
     console.error("Error fetching towers missing reports:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return c.json(
+      {
+        success: false,
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      },
+      500
+    );
+  }
+});
+
+// Queue missing report reminder emails (requires authentication)
+app.post("/admin/clubs/:clubId/missing-reports/send", clerkAuth, async (c) => {
+  try {
+    const env = c.env;
+    const config = getConfig(env);
+    const clubId = parseInt(c.req.param("clubId"), 10);
+
+    // Get current date or from query params
+    const today = new Date();
+    const year = parseInt(
+      c.req.query("year") || today.getFullYear().toString(),
+      10
+    );
+    const month = parseInt(
+      c.req.query("month") || (today.getMonth() + 1).toString(),
+      10
+    );
+
+    // Validate inputs
+    if (isNaN(clubId) || clubId <= 0) {
+      return c.json(
+        {
+          success: false,
+          error: "Invalid clubId parameter",
+          timestamp: new Date().toISOString(),
+        },
+        400
+      );
+    }
+
+    if (isNaN(year) || year < 2000 || year > 2100) {
+      return c.json(
+        {
+          success: false,
+          error: "Invalid year parameter (must be between 2000 and 2100)",
+          timestamp: new Date().toISOString(),
+        },
+        400
+      );
+    }
+
+    if (isNaN(month) || month < 1 || month > 12) {
+      return c.json(
+        {
+          success: false,
+          error: "Invalid month parameter (must be between 1 and 12)",
+          timestamp: new Date().toISOString(),
+        },
+        400
+      );
+    }
+
+    // Get towers lacking reports
+    const clubsClient = new ClubsClient(config);
+    const towersLackingReports =
+      await clubsClient.findTowersLackingReportsWithOwnerEmail(
+        clubId,
+        year,
+        month
+      );
+
+    // Filter to only towers with owner emails
+    const towersWithEmails = towersLackingReports.filter(
+      (tower) => tower.ownerEmail
+    );
+
+    if (towersWithEmails.length === 0) {
+      return c.json(
+        {
+          success: true,
+          message: "No towers with owner emails to notify",
+          queued: 0,
+          skipped: towersLackingReports.length,
+          timestamp: new Date().toISOString(),
+        },
+        200
+      );
+    }
+
+    // Queue emails for each tower owner
+    const queueClient = new QueueClient(config);
+    let queued = 0;
+    let failed = 0;
+    const errors: Array<{ towerName: string; error: string }> = [];
+
+    for (const tower of towersWithEmails) {
+      try {
+        const emailData = {
+          ownerName: tower.ownerName,
+          towerName: tower.name,
+          month,
+          year,
+          reportUrl: `${config.clientBaseUrl}/clubs/${clubId}/towers/${tower.id}/reports/new?year=${year}&month=${month}`,
+        };
+
+        const subject = getMissingReportEmailSubject(emailData);
+        const text = getMissingReportEmailText(emailData);
+        const html = getMissingReportEmailHtml(emailData);
+
+        await queueClient.queueEmail({
+          to: tower.ownerEmail!,
+          subject,
+          text,
+          html,
+        });
+
+        queued++;
+      } catch (error) {
+        failed++;
+        errors.push({
+          towerName: tower.name,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return c.json(
+      {
+        success: true,
+        message: `Queued ${queued} reminder emails`,
+        queued,
+        failed,
+        skipped: towersLackingReports.length - towersWithEmails.length,
+        errors: errors.length > 0 ? errors : undefined,
+        timestamp: new Date().toISOString(),
+      },
+      200
+    );
+  } catch (error) {
+    console.error("Error queueing missing report emails:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     return c.json(
       {
