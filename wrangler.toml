@@ -3,8 +3,27 @@ main = "src/index.ts"
 compatibility_date = "2024-11-22"
 compatibility_flags = ["nodejs_compat"]
 
+# Environment variables for local development
+[env.dev]
+[env.dev.vars]
+API_BASE_URL = "http://localhost:8080"
+CLIENT_BASE_URL = "http://localhost:3000"
+POLL_INTERVAL_MS = "5000"
+AUTH_METHOD = "jwt"
+FROM_EMAIL = "noreply@example.com"
+FROM_NAME = "Locomotive House"
+
 [env.production]
 name = "locomotivehousemailer"
+
+[env.production.vars]
+API_BASE_URL = "https://locomotivehouseapi.ryan-a2d.workers.dev"
+CLIENT_BASE_URL = "https://locomotivehouse.com"
+POLL_INTERVAL_MS = "10000"
+AUTH_METHOD = "clerk"
+CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsubG9jb21vdGl2ZWhvdXNlLmNvbSQ"
+FROM_EMAIL = "noreply@locomotivehouse.com"
+FROM_NAME = "Locomotive House"
 
 # Secrets (configure via: wrangler secret put NAME --env production)
 # REQUIRED:
