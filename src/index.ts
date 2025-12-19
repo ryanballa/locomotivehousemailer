@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { createClerkClient } from "@clerk/backend";
+import { createClerkClient, verifyToken } from "@clerk/backend";
 import { EmailService } from "./email-service";
 import { QueueClient } from "./queue-client";
 import { ClubsClient } from "./clubs-client";
@@ -18,7 +18,12 @@ const app = new Hono<{ Bindings: Env }>();
 // Middleware for Clerk authentication on protected routes
 const clerkAuth = async (c: any, next: any) => {
   const authHeader = c.req.header("Authorization");
+
+  console.log("=== Auth Middleware Debug ===");
+  console.log("Auth header present:", !!authHeader);
+
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    console.log("❌ Missing or invalid Authorization header");
     return c.json(
       { error: "Unauthorized: Missing or invalid Authorization header" },
       401
@@ -28,41 +33,54 @@ const clerkAuth = async (c: any, next: any) => {
   const token = authHeader.substring(7);
   const env = c.env as Env;
 
+  console.log("Token length:", token.length);
+  console.log("Auth method:", env.AUTH_METHOD);
+  console.log("CLERK_SECRET_KEY set:", !!env.CLERK_SECRET_KEY);
+
   try {
     const authMethod = env.AUTH_METHOD || "jwt";
 
     if (authMethod === "clerk") {
       // For Clerk auth, verify the token with Clerk if secret key is available
       if (env.CLERK_SECRET_KEY) {
-        const client = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
+        console.log("Verifying token with Clerk...");
         try {
           // Verify the JWT token signature with Clerk
-          const decoded = await client.verifyToken(token);
+          const decoded = await verifyToken(token, {
+            secretKey: env.CLERK_SECRET_KEY
+          });
+          console.log("✓ Token verified successfully");
           c.set("user", decoded);
         } catch (error) {
+          console.error("❌ Clerk token verification failed:", error);
           return c.json({ error: "Unauthorized: Invalid Clerk token" }, 401);
         }
       } else {
         // Clerk mode but no secret key - accept any bearer token (for development)
         console.warn(
-          "Clerk auth mode but CLERK_SECRET_KEY not set - accepting any bearer token"
+          "⚠️ Clerk auth mode but CLERK_SECRET_KEY not set - accepting any bearer token"
         );
       }
     } else if (authMethod === "jwt") {
       // For JWT auth, validate against API_JWT_TOKEN
+      console.log("Using JWT auth mode");
       if (token !== env.API_JWT_TOKEN) {
+        console.log("❌ JWT token mismatch");
         return c.json({ error: "Unauthorized: Invalid JWT token" }, 401);
       }
+      console.log("✓ JWT token valid");
     } else {
+      console.log("❌ Invalid AUTH_METHOD:", authMethod);
       return c.json(
         { error: "Unauthorized: Invalid AUTH_METHOD configuration" },
         401
       );
     }
 
+    console.log("✓ Authentication successful");
     return next();
   } catch (error) {
-    console.error("Auth error:", error);
+    console.error("❌ Auth error:", error);
     return c.json({ error: "Unauthorized: Authentication failed" }, 401);
   }
 };

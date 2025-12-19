@@ -476,18 +476,35 @@ function adminDashboardHandler(c: any) {
 
         async function onSignIn() {
           try {
-            // Get session token from Clerk
-            token = await clerk.session.getToken();
-
             // Update UI
             const email = clerk.user.primaryEmailAddress?.emailAddress || 'Unknown';
             document.getElementById('user-email').textContent = email;
             document.getElementById('auth-screen').style.display = 'none';
             document.getElementById('app-container').classList.add('loaded');
+
+            console.log('User signed in successfully:', email);
           } catch (error) {
-            console.error('Error getting session token:', error);
-            alert('Failed to get authentication token');
+            console.error('Error during sign in:', error);
+            alert('Failed to complete sign in');
           }
+        }
+
+        async function getAuthToken() {
+          if (clerk && clerk.session) {
+            try {
+              // Get a fresh token for each request
+              const freshToken = await clerk.session.getToken();
+              console.log('Got fresh token, length:', freshToken?.length);
+              return freshToken;
+            } catch (error) {
+              console.error('Error getting session token:', error);
+              throw error;
+            }
+          } else if (token) {
+            // Fallback to stored token for non-Clerk auth
+            return token;
+          }
+          throw new Error('No authentication available');
         }
 
         async function signOut() {
@@ -517,10 +534,13 @@ function adminDashboardHandler(c: any) {
         initAuth();
 
         async function makeRequest(endpoint, method = 'GET', data = null) {
+          // Get fresh token for each request
+          const authToken = await getAuthToken();
+
           const options = {
             method,
             headers: {
-              'Authorization': \`Bearer \${token}\`,
+              'Authorization': \`Bearer \${authToken}\`,
               'Content-Type': 'application/json'
             }
           };
