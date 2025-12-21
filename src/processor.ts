@@ -6,15 +6,22 @@ export class EmailProcessor {
   private emailService: EmailService;
   private queueClient: QueueClient;
   private maxBatchSize: number;
+  private delayBetweenEmails: number; // milliseconds
 
   constructor(
     emailService: EmailService,
     queueClient: QueueClient,
-    maxBatchSize: number = 10
+    maxBatchSize: number = 10,
+    delayBetweenEmails: number = 5000 // 5 second delay between emails
   ) {
     this.emailService = emailService;
     this.queueClient = queueClient;
     this.maxBatchSize = maxBatchSize;
+    this.delayBetweenEmails = delayBetweenEmails;
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async processPendingEmails(): Promise<PollResult> {
@@ -32,10 +39,17 @@ export class EmailProcessor {
         return result;
       }
 
-      console.log(`Processing ${emails.length} pending emails`);
+      console.log(`Processing ${emails.length} pending emails with ${this.delayBetweenEmails}ms delay between sends`);
 
-      for (const email of emails) {
+      for (let i = 0; i < emails.length; i++) {
+        const email = emails[i];
         await this.processEmail(email, result);
+
+        // Add delay between emails (except after the last one)
+        if (i < emails.length - 1) {
+          console.log(`Waiting ${this.delayBetweenEmails}ms before next email...`);
+          await this.sleep(this.delayBetweenEmails);
+        }
       }
 
       return result;

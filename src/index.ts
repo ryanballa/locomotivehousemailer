@@ -115,6 +115,7 @@ function getConfig(env: Env): MailerConfig {
     fromName: env.FROM_NAME || "Locomotive House",
     pollIntervalMs: parseInt(env.POLL_INTERVAL_MS || "5000", 10),
     maxBatchSize: 10,
+    emailDelayMs: parseInt(env.EMAIL_DELAY_MS || "5000", 10), // 5 seconds default
   };
 }
 
@@ -138,7 +139,8 @@ app.post("/process", clerkAuth, async (c) => {
     const processor = new EmailProcessor(
       emailService,
       queueClient,
-      config.maxBatchSize
+      config.maxBatchSize,
+      config.emailDelayMs
     );
 
     const result = await processor.processPendingEmails();
@@ -550,7 +552,8 @@ async function handleEmailProcessing(env: Env): Promise<void> {
   const processor = new EmailProcessor(
     emailService,
     queueClient,
-    config.maxBatchSize
+    config.maxBatchSize,
+    config.emailDelayMs
   );
 
   try {

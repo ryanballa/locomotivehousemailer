@@ -36,6 +36,7 @@ export interface MailerConfig {
   fromName: string;
   pollIntervalMs: number;
   maxBatchSize: number;
+  emailDelayMs: number;
 }
 
 export interface QueueResponse<T> {
@@ -98,6 +99,7 @@ export interface Env {
   FROM_EMAIL?: string;
   FROM_NAME?: string;
   POLL_INTERVAL_MS?: string;
+  EMAIL_DELAY_MS?: string;
 
   // Auth method 1: JWT
   API_JWT_TOKEN?: string;
