@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 API_BASE_URL = "http://localhost:8080"
 CLIENT_BASE_URL = "http://localhost:3000"
 POLL_INTERVAL_MS = "5000"
-AUTH_METHOD = "jwt"
+AUTH_METHOD = "clerk"
 FROM_EMAIL = "noreply@example.com"
 FROM_NAME = "Locomotive House"
 
